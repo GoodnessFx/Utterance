@@ -424,7 +424,6 @@ process.stdout.write = (chunk, encoding, cb) => {
 };
 
 let mainWindow=null, projectionWindow=null, historyWindow=null, themeWindow=null, splashWindow=null, countdownWindow=null;
-let _displayRemovalInProgress = false; // true during HDMI removal — prevents premature app quit
 let splashShownAt = 0;
 const MIN_SPLASH_MS = 2400;
 let httpServer=null;
@@ -962,16 +961,9 @@ ipcMain.on('quit-confirmed', () => { _transcriptUnsaved = false; app.quit(); });
 ipcMain.on('quit-cancelled', () => { /* do nothing — user changed mind */ });
 
 app.on('window-all-closed',()=>{
-  // GUARD: Do not quit if mainWindow still exists — it may be temporarily hidden
-  // during GPU teardown after an HDMI disconnect. Electron can fire window-all-closed
-  // the instant projectionWindow closes, before mainWindow finishes recovering.
+  // Guard: do not quit if mainWindow still exists — it may be temporarily
+  // hidden during a GPU context switch (e.g. external monitor change).
   if (mainWindow && !mainWindow.isDestroyed()) return;
-
-  // GUARD: Do not quit if a display removal is in progress.
-  // projectionWindow._lostTargetDisplay is true from removal until projection fully closes.
-  // Check the global flag set during display-removed handling.
-  if (_displayRemovalInProgress) return;
-
   stopNdi();
   stopHttpServer();
   stopWhisperServer();
@@ -1428,7 +1420,6 @@ function createMainWindow(){
 }
 
 let projectionPowerBlockerId = null;
-let projectionDisplayListenersAttached = false;
 
 function createProjectionWindow(displayId){
   if(projectionWindow){projectionWindow.focus();return;}
@@ -1448,6 +1439,7 @@ function createProjectionWindow(displayId){
     // This prevents the operator accidentally selecting/minimising the
     // projection window while switching apps on the laptop screen.
     skipTaskbar: !isSameDisplayAsMain,
+    minimizable: false, // prevents Win+D and taskbar from minimizing projection
     backgroundColor:'#000000',
     show: false,
     webPreferences:{
@@ -1494,7 +1486,7 @@ function createProjectionWindow(displayId){
   // Guard: restore projection if Win+D, Win+Tab or taskbar causes it to
   // lose fullscreen or become minimized. Check every 500ms.
   let _projGuardInterval = null;
-  let _projGuardPaused = false; // paused during display removal to avoid GPU conflicts
+  let _projGuardPaused = false; // paused during HDMI removal to avoid GPU conflicts
 
   function _startProjGuard() {
     if (_projGuardInterval) return;
@@ -1525,213 +1517,110 @@ function createProjectionWindow(displayId){
     }, 500);
   }
   _startProjGuard();
-  projectionWindow.on('closed', () => {
-    if (_projGuardInterval) { clearInterval(_projGuardInterval); _projGuardInterval = null; }
+
+  // Intercept minimize at the event level — Win+D bypasses minimizable:false on some Windows versions
+  projectionWindow.on('minimize', () => {
+    if (!isSameDisplayAsMain) {
+      try {
+        projectionWindow.restore();
+        projectionWindow.setFullScreen(true);
+      } catch(e) {}
+    }
   });
 
-  if (projectionPowerBlockerId !== null && powerSaveBlocker.isStarted(projectionPowerBlockerId)) {
-    powerSaveBlocker.stop(projectionPowerBlockerId);
-  }
-  projectionPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-
-  if (!projectionDisplayListenersAttached) {
-    projectionDisplayListenersAttached = true;
+  // ── HDMI smart wait-and-restore ──────────────────────────────────────────
+  // When the projection display is disconnected: pause the guard, hide the
+  // window off-screen (keeps it alive), notify operator.
+  // When it reconnects: move back, restore fullscreen, re-push content.
+  // Only attach once per app session to avoid duplicate listeners.
+  if (!projectionWindow._hdmiListenersAttached) {
+    projectionWindow._hdmiListenersAttached = true;
+    let _hdmiPaused = false;
 
     screen.on('display-removed', (_evt, removedDisplay) => {
       if (!projectionWindow || projectionWindow.isDestroyed()) return;
       if (projectionWindow._targetDisplayId !== removedDisplay.id) return;
 
-      _displayRemovalInProgress = true; // prevent window-all-closed from quitting the app
-      // Pause the guard interval immediately — it fighting setFullScreen
-      // during GPU compositor teardown is what causes the white screen freeze
+      _hdmiPaused = true;
+      projectionWindow._waitingForDisplay = true;
+
+      // Pause guard so it doesn't fight the OS during GPU teardown
       _projGuardPaused = true;
-      console.log('[Display] Guard paused for display removal');
 
-      projectionWindow._lostTargetDisplay = true;
-      const primaryId  = screen.getPrimaryDisplay().id;
-      const remaining  = screen.getAllDisplays();
-      // Look for another external display (not the primary/laptop screen)
-      const otherExternal = remaining.find(d => d.id !== primaryId);
-
-      if (otherExternal) {
-        // Move to another available external display
-        const b = otherExternal.bounds;
-        projectionWindow._targetDisplayId   = otherExternal.id;
-        projectionWindow._displayScaleFactor = otherExternal.scaleFactor || 1;
-        projectionWindow._displayWidth  = b.width;
-        projectionWindow._displayHeight = b.height;
-        projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
-        // Unpause guard after a short settle period then resume fullscreen
+      try {
+        // Exit fullscreen and park the window off-screen — keeps it alive
+        projectionWindow.setFullScreen(false);
+        projectionWindow.setAlwaysOnTop(false);
         setTimeout(() => {
           try {
             if (projectionWindow && !projectionWindow.isDestroyed()) {
-              projectionWindow.setFullScreen(true);
+              projectionWindow.setBounds({ x: -4, y: -4, width: 2, height: 2 });
+              projectionWindow.hide();
             }
           } catch(e) {}
-          _projGuardPaused = false;
-          _displayRemovalInProgress = false;
-        }, 800);
-        mainWindow?.webContents.send('display-warning',
-          { msg: 'Projection moved to another external display.' });
-      } else {
-        // No external display left — close projection so it doesn't cover the laptop screen.
-        // Close is safer than minimizing because the guard interval would restore it.
-        try {
-          projectionWindow.setAlwaysOnTop(false);
-          // Step 1: exit fullscreen first and wait for GPU to release
-          projectionWindow.setFullScreen(false);
-          setTimeout(() => {
-            try {
-              if (!projectionWindow || projectionWindow.isDestroyed()) return;
-              // Step 2: move to primary display before closing
-              // This prevents the GPU from reassigning context to mainWindow mid-close
-              const pb = screen.getPrimaryDisplay().bounds;
-              projectionWindow.setBounds({
-                x: pb.x + 100, y: pb.y + 100,
-                width: 400, height: 300
-              });
-              projectionWindow.minimize();
-              // Step 3: close after GPU has settled
-              setTimeout(() => {
-                try {
-                  if (projectionWindow && !projectionWindow.isDestroyed()) {
-                    projectionWindow.close();
-                  }
-                } catch(_) {}
-              }, 300);
-            } catch(e) {
-              try { projectionWindow.close(); } catch(_) {}
-            }
-          }, 350);
-        } catch(e) {
-          try { projectionWindow.close(); } catch(_) {}
-        }
-        // Bring main window to front now that projection is closing
-        // Staggered recovery: let projection fully close before restoring main window
-        const _recoverMainWindow = () => {
-          try {
-            if (!mainWindow || mainWindow.isDestroyed()) return;
-            // Step 1: restore from minimized/hidden state
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            // Step 2: bring to front using app-level focus
-            app.focus({ steal: true });
-            mainWindow.focus();
-            // Step 3: ensure it's not behind anything
-            mainWindow.setAlwaysOnTop(true);
-            setTimeout(() => {
-              try {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.setAlwaysOnTop(false);
-                  mainWindow.focus();
-                  // Step 4: if still white/unresponsive, trigger a soft reload
-                  if (mainWindow.webContents.isLoadingMainFrame() === false) {
-                    mainWindow.webContents.executeJavaScript(
-                      'document.body ? "ok" : "blank"'
-                    ).then(result => {
-                      if (result !== 'ok') {
-                        console.log('[Display] Main window blank — reloading');
-                        mainWindow.webContents.reload();
-                      }
-                    }).catch(() => {
-                      mainWindow.webContents.reload();
-                    });
-                  }
-                }
-              } catch(e) {}
-            }, 800);
-          } catch(e) {
-            console.error('[Display] Recovery error:', e);
-          }
-        };
-        // Wait for projection window to fully close before recovering
-        setTimeout(_recoverMainWindow, 600);
-        // Unpause the guard after full recovery (projection is gone so guard will self-clear)
-        setTimeout(() => { _projGuardPaused = false; _displayRemovalInProgress = false; }, 2000);
-        mainWindow?.webContents.send('display-warning', {
-          msg: 'External display disconnected — projection closed. Reconnect the display and press Project Live again.',
-          level: 'error'
-        });
-      }
+        }, 400);
+      } catch(e) {}
+
+      mainWindow?.webContents.send('display-warning', {
+        msg: 'Projector disconnected — waiting for reconnect…',
+        level: 'warn'
+      });
     });
 
     screen.on('display-added', (_evt, newDisplay) => {
       if (!projectionWindow || projectionWindow.isDestroyed()) return;
-      if (!projectionWindow._lostTargetDisplay) return;
+      if (!projectionWindow._waitingForDisplay) return;
+      // Ignore the primary/laptop screen appearing
       if (newDisplay.id === screen.getPrimaryDisplay().id) return;
-      _displayRemovalInProgress = false; // display is back — safe to allow quit again
-      projectionWindow._lostTargetDisplay = false;
-      const b = newDisplay.bounds;
+
+      projectionWindow._waitingForDisplay = false;
       projectionWindow._targetDisplayId = newDisplay.id;
       projectionWindow._displayScaleFactor = newDisplay.scaleFactor || 1;
-      projectionWindow._displayWidth = b.width;
-      projectionWindow._displayHeight = b.height;
-      projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+      projectionWindow._displayWidth  = newDisplay.bounds.width;
+      projectionWindow._displayHeight = newDisplay.bounds.height;
 
-      // Step 1: go fullscreen after display settles (800ms)
+      // Step 1: move to new display and show
       setTimeout(() => {
         try {
-          if (projectionWindow && !projectionWindow.isDestroyed()) {
-            projectionWindow.setFullScreen(true);
+          if (!projectionWindow || projectionWindow.isDestroyed()) return;
+          const b = newDisplay.bounds;
+          projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+          projectionWindow.show();
+          if (process.platform === 'win32') {
+            projectionWindow.setAlwaysOnTop(true, 'screen-saver');
+          } else {
+            projectionWindow.setAlwaysOnTop(true);
           }
+          projectionWindow.setFullScreen(true);
         } catch(e) {}
-        _projGuardPaused = false;
-      }, 800);
+      }, 600);
 
-      // Step 2: re-push the last render state so media/verse/song reappears
-      // Must wait for fullscreen + renderer to be ready to receive IPC (1400ms)
+      // Step 2: restore content after fullscreen settles
       setTimeout(() => {
         try {
-          if (projectionWindow && !projectionWindow.isDestroyed()) {
-            console.log('[Display] Restoring render state after reconnect:', currentRenderState?.module);
-            projectionWindowReadySync();
-            mainWindow?.webContents.send('projection-display-restored');
-          }
-        } catch(e) {
-          console.error('[Display] Failed to restore render state:', e);
-        }
+          if (!projectionWindow || projectionWindow.isDestroyed()) return;
+          projectionWindowReadySync();
+          mainWindow?.webContents.send('projection-display-restored');
+        } catch(e) {}
+        // Resume guard
+        _projGuardPaused = false;
+        _hdmiPaused = false;
       }, 1400);
 
       mainWindow?.webContents.send('display-warning', {
-        msg: 'External display reconnected — content restored.',
+        msg: 'Projector reconnected — content restored.',
         level: 'info'
       });
-    });
-
-    // Guard: if main window becomes unresponsive after any display change, recover it
-    screen.on('display-metrics-changed', () => {
-      // Pause guard during metrics change too — display bounds are shifting
-      _projGuardPaused = true;
-      setTimeout(() => {
-        _projGuardPaused = false;
-        try {
-          if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
-            // Only recover if no projection window is active
-            if (!projectionWindow || projectionWindow.isDestroyed()) {
-              mainWindow.show();
-              mainWindow.focus();
-            }
-          }
-        } catch(e) {}
-      }, 600);
     });
   }
 
   projectionWindow.on('closed',()=>{
-    const wasDisplayRemoval = projectionWindow?._lostTargetDisplay === true;
+    if (_projGuardInterval) { clearInterval(_projGuardInterval); _projGuardInterval = null; }
     projectionWindow=null;
-
-    if (!wasDisplayRemoval) {
-      // User closed projection deliberately — clear the live state
-      currentLiveVerse=null;
-      currentBackgroundMedia=null;
-      buildRenderState('clear', null, { backgroundMedia: null });
-    } else {
-      // Display was removed — preserve currentRenderState so it can be
-      // restored when the display is reconnected and projection reopens
-      console.log('[Display] Projection closed by display removal — preserving render state:', currentRenderState?.module);
-    }
-
+    // Clear live state when projection closes
+    currentLiveVerse=null;
+    currentBackgroundMedia=null;
+    buildRenderState('clear', null, { backgroundMedia: null });
     mainWindow?.webContents.send('projection-closed');
     if (projectionPowerBlockerId !== null && powerSaveBlocker.isStarted(projectionPowerBlockerId)) {
       powerSaveBlocker.stop(projectionPowerBlockerId);
