@@ -1097,12 +1097,12 @@ footer{
   <div class="dl-counter-wrap">
     <div class="dl-counter-inner">
       <div class="dl-counter-block">
-        <span class="dl-counter-num" id="dlCount">Loading...</span>
+        <span class="dl-counter-num" id="dlCount">15</span>
         <span class="dl-counter-lbl">Total Downloads</span>
       </div>
       <div class="dl-counter-divider"></div>
       <div class="dl-counter-block">
-        <span class="dl-counter-num" id="starCountHero">Loading...</span>
+        <span class="dl-counter-num" id="starCountHero">4</span>
         <span class="dl-counter-lbl">GitHub Stars</span>
       </div>
       <div class="dl-counter-divider"></div>
@@ -1344,72 +1344,102 @@ footer{
 
   /* ── GitHub stats ── */
   function loadStats(){
-    var OWNER = 'anchorcastapp-team';
-    var REPO_NAME = 'anchorcastapp';
-    var REPO = OWNER + '/' + REPO_NAME;
+    var REPO = 'anchorcastapp-team/anchorcastapp';
     var BASE = 'https://api.github.com/repos/' + REPO;
-    var RELEASES_URL = BASE + '/releases?per_page=100&_=' + Date.now();
-    var REPO_URL = BASE + '?_=' + Date.now();
-    var LATEST_URL = BASE + '/releases/latest?_=' + Date.now();
 
-    function byId(id){ return document.getElementById(id); }
+    /* Fallbacks — only used if ALL sources fail */
+    var FALLBACK_STARS   = 3;
+    var FALLBACK_VERSION = 'v1.2.0';
+
     function setText(ids, value){
       ids.forEach(function(id){
-        var el = byId(id);
+        var el = document.getElementById(id);
         if(el) el.textContent = value;
       });
     }
-    function toNumber(value){
-      var n = Number(String(value == null ? '' : value).replace(/,/g,'').replace(/[^0-9.]/g,''));
-      return Number.isFinite(n) ? n : 0;
-    }
-    function formatNumber(value){ return toNumber(value).toLocaleString(); }
-    function setLoading(){
-      setText(['dlCount','statDl'], 'Loading...');
-      setText(['starCount','ghStars','starCountHero'], 'Loading...');
-      setText(['releaseVer','relTag'], 'Loading...');
-    }
-    function setUnavailable(ids){ setText(ids, 'Unavailable'); }
 
-    setLoading();
+    function animateCounter(finalVal){
+      var dur = 900, start = performance.now();
+      (function tick(now){
+        var p = Math.min((now - start) / dur, 1);
+        var ease = 1 - Math.pow(1 - p, 3);
+        var val = Math.round(ease * finalVal);
+        setText(['dlCount','statDl'], val.toLocaleString());
+        if(p < 1) requestAnimationFrame(tick);
+      })(performance.now());
+    }
 
-    fetch(REPO_URL, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json' } })
-      .then(function(r){ if(!r.ok) throw new Error('repo stats failed: ' + r.status); return r.json(); })
-      .then(function(repo){ setText(['starCount','ghStars','starCountHero'], formatNumber(repo.stargazers_count)); })
-      .catch(function(err){
-        console.warn('[AnchorCast] Could not load GitHub stars from API:', err);
-        setUnavailable(['starCount','ghStars','starCountHero']);
+    /* ── Stars ── */
+    fetch(BASE)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        setText(['starCount','ghStars','starCountHero'],
+          ((d && d.stargazers_count) || FALLBACK_STARS).toLocaleString());
+      })
+      .catch(function(){
+        setText(['starCount','ghStars','starCountHero'], FALLBACK_STARS.toLocaleString());
       });
 
-    fetch(LATEST_URL, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json' } })
-      .then(function(r){ if(!r.ok) throw new Error('latest release failed: ' + r.status); return r.json(); })
-      .then(function(latest){ setText(['releaseVer','relTag'], latest && latest.tag_name ? latest.tag_name : 'Unavailable'); })
-      .catch(function(err){
-        console.warn('[AnchorCast] Could not load latest release from API:', err);
-        setUnavailable(['releaseVer','relTag']);
+    /* ── Latest version ── */
+    fetch(BASE + '/releases/latest')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : FALLBACK_VERSION);
+      })
+      .catch(function(){
+        setText(['releaseVer','relTag'], FALLBACK_VERSION);
       });
 
-    fetch(RELEASES_URL, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json' } })
-      .then(function(r){ if(!r.ok) throw new Error('release download stats failed: ' + r.status); return r.json(); })
+    /* ── Download count — GitHub API (most accurate, real-time) ── */
+    fetch(BASE + '/releases?per_page=100')
+      .then(function(r){ return r.json(); })
       .then(function(releases){
         var total = 0;
-        var assets = 0;
         if(Array.isArray(releases)){
           releases.forEach(function(release){
             (release.assets || []).forEach(function(asset){
-              assets += 1;
-              total += toNumber(asset.download_count);
+              total += (asset.download_count || 0);
             });
           });
         }
-        console.log('[AnchorCast] GitHub API downloads', { repo: REPO, releases: Array.isArray(releases) ? releases.length : 0, assets: assets, total: total });
-        setText(['dlCount','statDl'], formatNumber(total));
-        document.documentElement.setAttribute('data-download-count', String(total));
+        console.log('[AnchorCast] GitHub API downloads:', total);
+        if(total > 0){
+          animateCounter(total);
+        } else {
+          /* GitHub API returned 0 — try Shields.io as backup */
+          tryShields();
+        }
       })
       .catch(function(err){
-        console.warn('[AnchorCast] Could not load GitHub release downloads from API:', err);
-        setUnavailable(['dlCount','statDl']);
+        console.warn('[AnchorCast] GitHub API failed:', err.message);
+        tryShields();
       });
+
+    /* ── Shields.io fallback (has ~5min cache but more reliable cross-origin) ── */
+    function tryShields(){
+      fetch('https://img.shields.io/github/downloads/' + REPO + '/total.json')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          /* Shields returns value like "15" or "1.2k" */
+          var raw = String((d && d.value) || '0').replace(/,/g,'').trim();
+          var n = 0;
+          if(raw.toLowerCase().endsWith('k')){
+            n = Math.round(parseFloat(raw) * 1000);
+          } else {
+            n = parseInt(raw, 10) || 0;
+          }
+          console.log('[AnchorCast] Shields.io downloads:', n, '(raw:', raw, ')');
+          if(n > 0){
+            animateCounter(n);
+          } else {
+            setText(['dlCount','statDl'], '0');
+          }
+        })
+        .catch(function(err){
+          console.warn('[AnchorCast] Shields.io also failed:', err.message);
+          setText(['dlCount','statDl'], '0');
+        });
+    }
   }
   loadStats();
 
