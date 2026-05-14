@@ -3569,7 +3569,7 @@ function buildRegistrationStatusHtml(reg) {
       </div>
       <div class="btn-row">
         <button class="btn-paypal"
-          onclick="window.electronAPI?.openExternal('https://paypal.me/appdeveloper')">
+          onclick="window.electronAPI?.openExternal('https://paypal.me/nkofodile')">
           <span style="font-size:16px">💳</span> Donate via PayPal
         </button>
         <button class="btn-github"
