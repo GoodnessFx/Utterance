@@ -1126,101 +1126,71 @@ footer{
   /* ── GitHub stats ── */
   function loadStats(){
     var REPO = 'anchorcastapp-team/anchorcastapp';
-    var BASE = 'https://api.github.com/repos/' + REPO;
 
-    /* Fallbacks — only used if ALL sources fail */
-    var FALLBACK_STARS   = 3;
-    var FALLBACK_VERSION = 'v1.2.0';
+    /* ── GitHub API is blocked (403) from browsers on this host.
+       Use Shields.io which proxies GitHub data without CORS issues. ── */
 
-    function setText(ids, value){
+    function setText(ids, val){
       ids.forEach(function(id){
-        var el = document.getElementById(id);
-        if(el) el.textContent = value;
+        var el = document.getElementById(id); if(el) el.textContent = val;
       });
     }
 
     function animateCounter(finalVal){
+      var n = parseInt(String(finalVal).replace(/[^0-9]/g,''), 10) || 0;
+      if(n === 0){ setText(['dlCount','statDl'], '0'); return; }
       var dur = 900, start = performance.now();
       (function tick(now){
         var p = Math.min((now - start) / dur, 1);
         var ease = 1 - Math.pow(1 - p, 3);
-        var val = Math.round(ease * finalVal);
-        setText(['dlCount','statDl'], val.toLocaleString());
+        setText(['dlCount','statDl'], Math.round(ease * n).toLocaleString());
         if(p < 1) requestAnimationFrame(tick);
       })(performance.now());
     }
 
-    /* ── Stars ── */
-    fetch(BASE)
+    function parseShieldsValue(raw){
+      raw = String(raw || '').replace(/,/g,'').trim();
+      if(!raw || raw === 'N/A') return 0;
+      if(/k$/i.test(raw)) return Math.round(parseFloat(raw) * 1000);
+      return parseInt(raw, 10) || 0;
+    }
+
+    /* ── Total downloads via Shields.io JSON badge ── */
+    fetch('https://img.shields.io/github/downloads/' + REPO + '/total.json')
       .then(function(r){ return r.json(); })
       .then(function(d){
-        setText(['starCount','ghStars','starCountHero'],
-          ((d && d.stargazers_count) || FALLBACK_STARS).toLocaleString());
-      })
-      .catch(function(){
-        setText(['starCount','ghStars','starCountHero'], FALLBACK_STARS.toLocaleString());
-      });
-
-    /* ── Latest version ── */
-    fetch(BASE + '/releases/latest')
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : FALLBACK_VERSION);
-      })
-      .catch(function(){
-        setText(['releaseVer','relTag'], FALLBACK_VERSION);
-      });
-
-    /* ── Download count — GitHub API (most accurate, real-time) ── */
-    fetch(BASE + '/releases?per_page=100')
-      .then(function(r){ return r.json(); })
-      .then(function(releases){
-        var total = 0;
-        if(Array.isArray(releases)){
-          releases.forEach(function(release){
-            (release.assets || []).forEach(function(asset){
-              total += (asset.download_count || 0);
-            });
-          });
-        }
-        console.log('[AnchorCast] GitHub API downloads:', total);
-        if(total > 0){
-          animateCounter(total);
-        } else {
-          /* GitHub API returned 0 — try Shields.io as backup */
-          tryShields();
-        }
+        var n = parseShieldsValue(d && d.value);
+        console.log('[AnchorCast] downloads (shields):', n, '| raw:', d && d.value);
+        animateCounter(n);
       })
       .catch(function(err){
-        console.warn('[AnchorCast] GitHub API failed:', err.message);
-        tryShields();
+        console.warn('[AnchorCast] shields download count failed:', err.message);
+        setText(['dlCount','statDl'], '—');
       });
 
-    /* ── Shields.io fallback (has ~5min cache but more reliable cross-origin) ── */
-    function tryShields(){
-      fetch('https://img.shields.io/github/downloads/' + REPO + '/total.json')
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          /* Shields returns value like "15" or "1.2k" */
-          var raw = String((d && d.value) || '0').replace(/,/g,'').trim();
-          var n = 0;
-          if(raw.toLowerCase().endsWith('k')){
-            n = Math.round(parseFloat(raw) * 1000);
-          } else {
-            n = parseInt(raw, 10) || 0;
-          }
-          console.log('[AnchorCast] Shields.io downloads:', n, '(raw:', raw, ')');
-          if(n > 0){
-            animateCounter(n);
-          } else {
-            setText(['dlCount','statDl'], '0');
-          }
-        })
-        .catch(function(err){
-          console.warn('[AnchorCast] Shields.io also failed:', err.message);
-          setText(['dlCount','statDl'], '0');
-        });
-    }
+    /* ── Stars via Shields.io ── */
+    fetch('https://img.shields.io/github/stars/' + REPO + '.json')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var n = parseShieldsValue(d && d.value);
+        console.log('[AnchorCast] stars (shields):', n, '| raw:', d && d.value);
+        setText(['starCount','ghStars','starCountHero'], (n || '—').toLocaleString());
+      })
+      .catch(function(){
+        setText(['starCount','ghStars','starCountHero'], '—');
+      });
+
+    /* ── Latest version via Shields.io ── */
+    fetch('https://img.shields.io/github/release/' + REPO + '.json')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var ver = (d && d.value && d.value !== 'none') ? d.value : 'v1.2.0';
+        console.log('[AnchorCast] version (shields):', ver);
+        setText(['releaseVer','relTag'], ver);
+      })
+      .catch(function(){
+        setText(['releaseVer','relTag'], 'v1.2.0');
+      });
   }
   loadStats();
 
