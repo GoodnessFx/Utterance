@@ -1127,70 +1127,54 @@ footer{
   function loadStats(){
     var REPO = 'anchorcastapp-team/anchorcastapp';
 
-    /* ── GitHub API is blocked (403) from browsers on this host.
-       Use Shields.io which proxies GitHub data without CORS issues. ── */
-
     function setText(ids, val){
       ids.forEach(function(id){
         var el = document.getElementById(id); if(el) el.textContent = val;
       });
     }
-
-    function animateCounter(finalVal){
-      var n = parseInt(String(finalVal).replace(/[^0-9]/g,''), 10) || 0;
-      if(n === 0){ setText(['dlCount','statDl'], '0'); return; }
-      var dur = 900, start = performance.now();
+    function animateCounter(n){
+      n = parseInt(n, 10) || 0;
+      if(!n){ setText(['dlCount','statDl'], '0'); return; }
+      var dur = 900, t0 = performance.now();
       (function tick(now){
-        var p = Math.min((now - start) / dur, 1);
-        var ease = 1 - Math.pow(1 - p, 3);
-        setText(['dlCount','statDl'], Math.round(ease * n).toLocaleString());
-        if(p < 1) requestAnimationFrame(tick);
+        var p = Math.min((now-t0)/dur,1), ease=1-Math.pow(1-p,3);
+        setText(['dlCount','statDl'], Math.round(ease*n).toLocaleString());
+        if(p<1) requestAnimationFrame(tick);
       })(performance.now());
     }
-
-    function parseShieldsValue(raw){
-      raw = String(raw || '').replace(/,/g,'').trim();
-      if(!raw || raw === 'N/A') return 0;
-      if(/k$/i.test(raw)) return Math.round(parseFloat(raw) * 1000);
-      return parseInt(raw, 10) || 0;
+    function parseShields(raw){
+      raw = String(raw||'').replace(/,/g,'').trim();
+      if(!raw||raw==='N/A') return 0;
+      if(/k$/i.test(raw)) return Math.round(parseFloat(raw)*1000);
+      return parseInt(raw,10)||0;
     }
 
-    /* ── Total downloads via Shields.io JSON badge ── */
-    fetch('https://img.shields.io/github/downloads/' + REPO + '/total.json')
+    /* Downloads — Shields.io proxies GitHub, no CORS/rate-limit issues */
+    fetch('https://img.shields.io/github/downloads/'+REPO+'/total.json')
       .then(function(r){ return r.json(); })
       .then(function(d){
-        var n = parseShieldsValue(d && d.value);
-        console.log('[AnchorCast] downloads (shields):', n, '| raw:', d && d.value);
+        var n = parseShields(d && d.value);
+        console.log('[AnchorCast] downloads:', n, '(raw:', d&&d.value, ')');
         animateCounter(n);
-      })
-      .catch(function(err){
-        console.warn('[AnchorCast] shields download count failed:', err.message);
+      }).catch(function(err){
+        console.warn('[AnchorCast] download count unavailable:', err.message);
         setText(['dlCount','statDl'], '—');
       });
 
-    /* ── Stars via Shields.io ── */
-    fetch('https://img.shields.io/github/stars/' + REPO + '.json')
+    /* Stars */
+    fetch('https://img.shields.io/github/stars/'+REPO+'.json')
       .then(function(r){ return r.json(); })
       .then(function(d){
-        var n = parseShieldsValue(d && d.value);
-        console.log('[AnchorCast] stars (shields):', n, '| raw:', d && d.value);
-        setText(['starCount','ghStars','starCountHero'], (n || '—').toLocaleString());
-      })
-      .catch(function(){
-        setText(['starCount','ghStars','starCountHero'], '—');
-      });
+        setText(['starCount','ghStars','starCountHero'], parseShields(d&&d.value).toLocaleString());
+      }).catch(function(){ setText(['starCount','ghStars','starCountHero'], '—'); });
 
-    /* ── Latest version via Shields.io ── */
-    fetch('https://img.shields.io/github/release/' + REPO + '.json')
+    /* Latest version */
+    fetch('https://img.shields.io/github/release/'+REPO+'.json')
       .then(function(r){ return r.json(); })
       .then(function(d){
-        var ver = (d && d.value && d.value !== 'none') ? d.value : 'v1.2.0';
-        console.log('[AnchorCast] version (shields):', ver);
-        setText(['releaseVer','relTag'], ver);
-      })
-      .catch(function(){
-        setText(['releaseVer','relTag'], 'v1.2.0');
-      });
+        setText(['releaseVer','relTag'],
+          (d&&d.value&&d.value!=='none') ? d.value : 'v1.2.0');
+      }).catch(function(){ setText(['releaseVer','relTag'], 'v1.2.0'); });
   }
   loadStats();
 
