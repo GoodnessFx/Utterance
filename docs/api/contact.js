@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
   try {
     const apiKey = process.env.RESEND_API_KEY;
     const toEmail = process.env.CONTACT_TO_EMAIL || 'info@kaitamtech.com';
-    const fromEmail = process.env.CONTACT_FROM_EMAIL || 'AnchorCast <onboarding@resend.dev>';
+    const fromEmail = process.env.CONTACT_FROM_EMAIL || 'AnchorCastAPP <noreply@anchorcastapp.com>';
 
     if (!apiKey) {
       return res.status(500).json({ ok: false, error: 'Missing RESEND_API_KEY' });
