@@ -1205,30 +1205,48 @@ function handleSubmit(e){
   var success = document.getElementById('cfSuccess');
   var btn     = form.querySelector('.cf-submit');
 
-  /* Read values directly from inputs */
   var name    = form.querySelector('input[name="name"]').value.trim();
   var email   = form.querySelector('input[name="email"]').value.trim();
   var subject = form.querySelector('select[name="subject"]').value;
   var message = form.querySelector('textarea[name="message"]').value.trim();
 
-  /* Build mailto link */
-  var body = encodeURIComponent(
-    'From: ' + name + '\n' +
-    'Email: ' + email + '\n\n' +
-    message
-  );
-  var mailtoLink = 'mailto:info@kaitamtech.com' +
-    '?subject=' + encodeURIComponent('[AnchorCast] ' + subject) +
-    '&body=' + body;
+  /* ── Replace YOUR_FORM_ID with your Formspree form ID ── */
+  var FORMSPREE_URL = 'https://formspree.io/f/xwvygrok';
 
-  /* Show success state */
-  btn.innerHTML = '&#10003; Sent!';
-  btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-  success.classList.add('show');
-  form.querySelectorAll('input,select,textarea,button').forEach(function(el){ el.disabled = true; });
+  btn.innerHTML = 'Sending...';
+  btn.disabled = true;
 
-  /* Open mail client */
-  window.location.href = mailtoLink;
+  fetch(FORMSPREE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      name: name,
+      email: email,
+      subject: subject,
+      message: message
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.ok || data.next){
+      /* Success */
+      btn.innerHTML = '&#10003; Message Sent!';
+      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+      success.classList.add('show');
+      form.querySelectorAll('input,select,textarea,button').forEach(function(el){ el.disabled = true; });
+    } else {
+      /* Formspree returned an error */
+      btn.innerHTML = '&#9889; Send Message';
+      btn.disabled = false;
+      btn.style.background = '';
+      alert('Something went wrong. Please email us directly at info@kaitamtech.com');
+    }
+  })
+  .catch(function(){
+    btn.innerHTML = '&#9889; Send Message';
+    btn.disabled = false;
+    alert('Could not send message. Please email info@kaitamtech.com directly.');
+  });
 }
 </script>
 
