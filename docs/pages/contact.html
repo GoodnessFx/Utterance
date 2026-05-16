@@ -1201,22 +1201,20 @@ footer{
 <script>
 function handleSubmit(e){
   e.preventDefault();
-  var form = document.getElementById('contactForm');
+  var form    = document.getElementById('contactForm');
   var success = document.getElementById('cfSuccess');
-  var btn = form.querySelector('.cf-submit');
+  var btn     = form.querySelector('.cf-submit');
 
-  /* Collect form data */
-  var data = new FormData(form);
-  var name    = data.get('name');
-  var email   = data.get('email');
-  var subject = data.get('subject');
-  var message = data.get('message');
+  /* Read values directly from inputs */
+  var name    = form.querySelector('input[name="name"]').value.trim();
+  var email   = form.querySelector('input[name="email"]').value.trim();
+  var subject = form.querySelector('select[name="subject"]').value;
+  var message = form.querySelector('textarea[name="message"]').value.trim();
 
-  /* Send via mailto as fallback (no backend needed) */
+  /* Build mailto link */
   var body = encodeURIComponent(
     'From: ' + name + '\n' +
-    'Email: ' + email + '\n' +
-    'Subject: ' + subject + '\n\n' +
+    'Email: ' + email + '\n\n' +
     message
   );
   var mailtoLink = 'mailto:info@kaitamtech.com' +
@@ -1224,13 +1222,13 @@ function handleSubmit(e){
     '&body=' + body;
 
   /* Show success state */
-  btn.textContent = '✓ Sent!';
+  btn.innerHTML = '&#10003; Sent!';
   btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
   success.classList.add('show');
-  form.querySelectorAll('input,select,textarea').forEach(function(el){ el.disabled = true; });
+  form.querySelectorAll('input,select,textarea,button').forEach(function(el){ el.disabled = true; });
 
   /* Open mail client */
-  setTimeout(function(){ window.location.href = mailtoLink; }, 400);
+  window.location.href = mailtoLink;
 }
 </script>
 
