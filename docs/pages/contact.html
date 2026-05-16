@@ -1223,7 +1223,8 @@ function handleSubmit(e){
       name: name,
       email: email,
       subject: subject,
-      message: message
+      message: message,
+      _subject: '[AnchorCast] ' + subject
     })
   })
   .then(function(r){ return r.json(); })
