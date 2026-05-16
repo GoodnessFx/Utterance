@@ -1032,6 +1032,25 @@ footer{
   .cf-submit{width:100%;justify-content:center}
 }
 /* ── END CONTACT ── */
+
+/* ── Autofill text color fix ── */
+.cf-field input:-webkit-autofill,
+.cf-field input:-webkit-autofill:hover,
+.cf-field input:-webkit-autofill:focus,
+.cf-field input:-webkit-autofill:active{
+  -webkit-text-fill-color: var(--text, #eaecff) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--ink2, #0c1222) inset !important;
+  box-shadow: 0 0 0 1000px var(--ink2, #0c1222) inset !important;
+  border-color: var(--gold-rim, rgba(201,168,76,.2)) !important;
+  caret-color: var(--text, #eaecff);
+  transition: background-color 9999s ease-in-out 0s;
+}
+.cf-field input,
+.cf-field select,
+.cf-field textarea{
+  color-scheme: dark;
+}
+
 </style>
 </head>
 <body>
@@ -1210,37 +1229,27 @@ function handleSubmit(e){
   var subject = form.querySelector('select[name="subject"]').value;
   var message = form.querySelector('textarea[name="message"]').value.trim();
 
-  /* ── Replace YOUR_FORM_ID with your Formspree form ID ── */
-  var FORMSPREE_URL = 'https://formspree.io/f/xwvygrok';
-
   btn.innerHTML = 'Sending...';
   btn.disabled = true;
 
-  fetch(FORMSPREE_URL, {
+  /* Vercel serverless function — /api/contact → contact.js */
+  fetch('/api/contact', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({
-      name: name,
-      email: email,
-      subject: subject,
-      message: message,
-      _subject: '[AnchorCast] ' + subject
-    })
+    body: JSON.stringify({ name: name, email: email, subject: subject, message: message })
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if(data.ok || data.next){
-      /* Success */
+    if(data.ok){
       btn.innerHTML = '&#10003; Message Sent!';
       btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+      btn.style.webkitTextFillColor = '#000';
       success.classList.add('show');
       form.querySelectorAll('input,select,textarea,button').forEach(function(el){ el.disabled = true; });
     } else {
-      /* Formspree returned an error */
       btn.innerHTML = '&#9889; Send Message';
       btn.disabled = false;
-      btn.style.background = '';
-      alert('Something went wrong. Please email us directly at info@kaitamtech.com');
+      alert(data.error || 'Something went wrong. Please email info@kaitamtech.com directly.');
     }
   })
   .catch(function(){
