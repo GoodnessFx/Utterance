@@ -846,6 +846,55 @@ body.menu-open{overflow:hidden}
 .dl-parity-icon{font-size:18px;flex-shrink:0}
 .dl-parity-note strong{color:var(--text)}
 
+
+/* ── OS TABS ── */
+.dl-os-tabs{
+  display:flex;gap:8px;margin-bottom:28px;
+  background:var(--ink2);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;padding:6px;
+  width:fit-content;
+}
+.dl-os-tab{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 22px;border-radius:10px;
+  font-family:'Cinzel',serif;font-size:12px;font-weight:700;
+  letter-spacing:.06em;cursor:pointer;border:none;
+  background:none;color:var(--muted);
+  transition:background .2s,color .2s;
+  -webkit-text-fill-color:var(--muted);
+}
+.dl-os-tab.active{
+  background:linear-gradient(135deg,var(--gold),var(--gold-dk));
+  color:#000;-webkit-text-fill-color:#000;
+  box-shadow:0 4px 16px rgba(201,168,76,.3);
+}
+.dl-os-tab:hover:not(.active){
+  background:rgba(255,255,255,.05);
+  color:var(--text);-webkit-text-fill-color:var(--text);
+}
+.dl-os-panel{display:none}
+.dl-os-panel.active{display:block}
+
+/* Mac chip selector inside card */
+.dl-chip-tabs{
+  display:flex;gap:6px;margin-bottom:14px;
+}
+.dl-chip-tab{
+  flex:1;padding:8px 12px;border-radius:8px;
+  font-size:11.5px;font-weight:600;text-align:center;
+  cursor:pointer;border:1px solid rgba(255,255,255,.1);
+  background:var(--ink3);color:var(--muted);
+  transition:all .2s;-webkit-text-fill-color:var(--muted);
+}
+.dl-chip-tab.active{
+  border-color:var(--gold-rim);
+  background:var(--gold-glow);
+  color:var(--gold);-webkit-text-fill-color:var(--gold);
+}
+.dl-chip-panel{display:none}
+.dl-chip-panel.active{display:flex;flex-direction:column;gap:10px}
+
 /* Mobile */
 @media(max-width:680px){
   .dl-builds-grid{grid-template-columns:1fr}
@@ -1031,73 +1080,185 @@ footer{
 <section class="section">
   <div id="choose" style="scroll-margin-top:80px">
 
-  <!-- Release comparison heading -->
   <div class="centered" style="margin-bottom:36px">
     <div class="sec-tag" style="justify-content:center">Choose Your Build</div>
     <h2>Two Versions, <i>One App</i></h2>
-    <p class="sec-sub" style="margin:0 auto">Same full app — choose based on your internet availability and PC specs.</p>
+    <p class="sec-sub" style="margin:0 auto">Same full app — choose your platform and build type.</p>
   </div>
 
-  <div class="dl-builds-grid">
-
-    <!-- BUILD 1: With Whisper bundled (RECOMMENDED) -->
-    <div class="dl-build-card dl-build-featured">
-      <div class="dl-build-badge">⭐ Recommended</div>
-      <div class="dl-build-header">
-        <div class="dl-build-icon">🧠</div>
-        <div>
-          <div class="dl-build-title">With AI Bundled</div>
-          <div class="dl-build-version">v1.2.0 — Full Offline</div>
-        </div>
-      </div>
-      <div class="dl-build-desc">Includes the Whisper AI model bundled inside the installer. Install once, works <strong>100% offline</strong> — no internet needed ever again after install.</div>
-      <div class="dl-build-specs">
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>Local Whisper AI — fully private</div>
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>Works without any internet connection</div>
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>Best for churches with weak / no Wi-Fi</div>
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>All features unlocked out of the box</div>
-        <div class="dl-spec dl-spec-muted"><span>📦</span>~629 MB installer</div>
-      </div>
-      <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.2.0/AnchorCastSetup_v1.2.0.exe"
-         class="btn-gold" style="width:100%;justify-content:center;margin-top:auto">
-        ⬇ Download — With AI Bundled
-      </a>
-      <div class="dl-build-filename">AnchorCastSetup_v1.2.0.exe · Windows 10/11</div>
-    </div>
-
-    <!-- BUILD 2: Lightweight (without bundled Whisper) -->
-    <div class="dl-build-card">
-      <div class="dl-build-header">
-        <div class="dl-build-icon">⚡</div>
-        <div>
-          <div class="dl-build-title">Lightweight</div>
-          <div class="dl-build-version">v1.2.0 — Small Download</div>
-        </div>
-      </div>
-      <div class="dl-build-desc">Smaller installer without the Whisper model bundled. The AI model (~244 MB) downloads automatically on first use, or can be set up from Settings.</div>
-      <div class="dl-build-specs">
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>Faster initial download</div>
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>Good if you have reliable internet</div>
-        <div class="dl-spec"><span class="dl-spec-check">✓</span>Same full app and all features</div>
-        <div class="dl-spec dl-spec-muted"><span>⚠</span>Needs internet to download AI model (~244 MB)</div>
-        <div class="dl-spec dl-spec-muted"><span>📦</span>Smaller installer</div>
-      </div>
-      <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.1.0/AnchorCastSetup_v1.1.0.exe"
-         class="btn-ghost" style="width:100%;justify-content:center;margin-top:auto">
-        ⬇ Download — Lightweight
-      </a>
-      <div class="dl-build-filename">AnchorCastSetup_v1.1.0.exe · Windows 10/11</div>
-    </div>
-
+  <!-- OS Tab Switcher -->
+  <div class="dl-os-tabs reveal">
+    <button class="dl-os-tab active" onclick="switchOS('windows',this)">🪟 Windows</button>
+    <button class="dl-os-tab" onclick="switchOS('mac',this)">🍎 macOS</button>
   </div>
 
-  <!-- Feature parity note -->
-  <div class="dl-parity-note reveal">
+  <!-- ══ WINDOWS ══ -->
+  <div class="dl-os-panel active" id="os-windows">
+    <div class="dl-builds-grid reveal">
+
+      <!-- With AI Bundled -->
+      <div class="dl-build-card dl-build-featured">
+        <div class="dl-build-badge">⭐ Recommended</div>
+        <div class="dl-build-header">
+          <div class="dl-build-icon">🧠</div>
+          <div>
+            <div class="dl-build-title">With AI Bundled</div>
+            <div class="dl-build-version">v1.2.0 — Full Offline</div>
+          </div>
+        </div>
+        <div class="dl-build-desc">Whisper AI model included. Install once, works <strong>100% offline</strong> — no internet needed after install.</div>
+        <div class="dl-build-specs">
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Local Whisper AI — fully private</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Works without any internet connection</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Best for churches with weak / no Wi-Fi</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>All features unlocked out of the box</div>
+          <div class="dl-spec dl-spec-muted"><span>📦</span>~629 MB installer</div>
+        </div>
+        <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.2.0/AnchorCastSetup_v1.2.0.exe"
+           class="btn-gold" style="width:100%;justify-content:center;margin-top:auto">
+          ⬇ Download — With AI Bundled
+        </a>
+        <div class="dl-build-filename">AnchorCastSetup_v1.2.0.exe · Windows 10/11</div>
+      </div>
+
+      <!-- Lightweight -->
+      <div class="dl-build-card">
+        <div class="dl-build-header">
+          <div class="dl-build-icon">⚡</div>
+          <div>
+            <div class="dl-build-title">Lightweight</div>
+            <div class="dl-build-version">v1.1.0 — Small Download</div>
+          </div>
+        </div>
+        <div class="dl-build-desc">Smaller installer. Whisper AI (~244 MB) downloads automatically on first use.</div>
+        <div class="dl-build-specs">
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Faster initial download</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Good if you have reliable internet</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Same full app and all features</div>
+          <div class="dl-spec dl-spec-muted"><span>⚠</span>Needs internet to download AI model (~244 MB)</div>
+          <div class="dl-spec dl-spec-muted"><span>📦</span>Smaller installer</div>
+        </div>
+        <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.1.0/AnchorCastSetup_v1.1.0.exe"
+           class="btn-ghost" style="width:100%;justify-content:center;margin-top:auto">
+          ⬇ Download — Lightweight
+        </a>
+        <div class="dl-build-filename">AnchorCastSetup_v1.1.0.exe · Windows 10/11</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ MAC ══ -->
+  <div class="dl-os-panel" id="os-mac">
+    <div class="dl-builds-grid reveal">
+
+      <!-- Mac With AI Bundled -->
+      <div class="dl-build-card dl-build-featured">
+        <div class="dl-build-badge">⭐ Recommended</div>
+        <div class="dl-build-header">
+          <div class="dl-build-icon">🧠</div>
+          <div>
+            <div class="dl-build-title">With AI Bundled</div>
+            <div class="dl-build-version">v1.2.0 — Full Offline</div>
+          </div>
+        </div>
+        <div class="dl-build-desc">Whisper AI model included. Works <strong>100% offline</strong> after install.</div>
+        <div class="dl-build-specs">
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Local Whisper AI — fully private</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Works without any internet connection</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>All features unlocked out of the box</div>
+          <div class="dl-spec dl-spec-muted"><span>📦</span>~629 MB installer</div>
+        </div>
+        <!-- Chip selector -->
+        <div class="dl-chip-tabs">
+          <div class="dl-chip-tab active" onclick="switchChip('mac-ai',this)">Apple Silicon (M1/M2/M3)</div>
+          <div class="dl-chip-tab" onclick="switchChip('mac-ai',this)">Intel</div>
+        </div>
+        <div class="dl-chip-panel active" id="chip-mac-ai-arm">
+          <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.2.0/AnchorCastSetup_v1.2.0_mac_arm64.dmg"
+             class="btn-gold" style="width:100%;justify-content:center">
+            ⬇ Download — Apple Silicon
+          </a>
+          <div class="dl-build-filename">AnchorCastSetup_v1.2.0_mac_arm64.dmg</div>
+        </div>
+        <div class="dl-chip-panel" id="chip-mac-ai-intel">
+          <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.2.0/AnchorCastSetup_v1.2.0_mac_intel.dmg"
+             class="btn-gold" style="width:100%;justify-content:center">
+            ⬇ Download — Mac Intel
+          </a>
+          <div class="dl-build-filename">AnchorCastSetup_v1.2.0_mac_intel.dmg</div>
+        </div>
+      </div>
+
+      <!-- Mac Lightweight -->
+      <div class="dl-build-card">
+        <div class="dl-build-header">
+          <div class="dl-build-icon">⚡</div>
+          <div>
+            <div class="dl-build-title">Lightweight</div>
+            <div class="dl-build-version">v1.1.0 — Small Download</div>
+          </div>
+        </div>
+        <div class="dl-build-desc">Smaller installer. Whisper AI (~244 MB) downloads on first use.</div>
+        <div class="dl-build-specs">
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Faster initial download</div>
+          <div class="dl-spec"><span class="dl-spec-check">✓</span>Same full app and all features</div>
+          <div class="dl-spec dl-spec-muted"><span>⚠</span>Needs internet to download AI model (~244 MB)</div>
+        </div>
+        <!-- Chip selector -->
+        <div class="dl-chip-tabs">
+          <div class="dl-chip-tab active" onclick="switchChip('mac-lite',this)">Apple Silicon (M1/M2/M3)</div>
+          <div class="dl-chip-tab" onclick="switchChip('mac-lite',this)">Intel</div>
+        </div>
+        <div class="dl-chip-panel active" id="chip-mac-lite-arm">
+          <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.1.0/AnchorCastSetup_v1.1.0_mac_arm64.dmg"
+             class="btn-ghost" style="width:100%;justify-content:center">
+            ⬇ Download — Apple Silicon
+          </a>
+          <div class="dl-build-filename">AnchorCastSetup_v1.1.0_mac_arm64.dmg</div>
+        </div>
+        <div class="dl-chip-panel" id="chip-mac-lite-intel">
+          <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases/download/v1.1.0/AnchorCastSetup_v1.1.0_mac_intel.dmg"
+             class="btn-ghost" style="width:100%;justify-content:center">
+            ⬇ Download — Mac Intel
+          </a>
+          <div class="dl-build-filename">AnchorCastSetup_v1.1.0_mac_intel.dmg</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="dl-parity-note reveal" style="margin-top:16px">
+      <span class="dl-parity-icon">🍎</span>
+      <div><strong>macOS note:</strong> After downloading, open the DMG, drag AnchorCast to Applications. If macOS says "unidentified developer", right-click the app → Open → Open anyway.</div>
+    </div>
+  </div>
+
+  <!-- Parity note -->
+  <div class="dl-parity-note reveal" style="margin-top:20px">
     <span class="dl-parity-icon">ℹ️</span>
-    <div><strong>Both versions are identical in features.</strong> The only difference is whether Whisper AI is bundled inside the installer or downloaded separately on first use. Either way, the app runs fully offline after setup.</div>
+    <div><strong>Both versions are identical in features.</strong> The only difference is whether Whisper AI is bundled inside the installer or downloaded separately on first use.</div>
   </div>
 
 </div>
+
+<script>
+function switchOS(os, btn){
+  document.querySelectorAll('.dl-os-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.dl-os-panel').forEach(function(p){ p.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('os-' + os).classList.add('active');
+}
+function switchChip(group, btn){
+  var card = btn.closest('.dl-build-card');
+  card.querySelectorAll('.dl-chip-tab').forEach(function(t){ t.classList.remove('active'); });
+  var panels = card.querySelectorAll('.dl-chip-panel');
+  panels.forEach(function(p){ p.classList.remove('active'); });
+  btn.classList.add('active');
+  var idx = Array.from(btn.parentElement.children).indexOf(btn);
+  if(panels[idx]) panels[idx].classList.add('active');
+}
+</script>
 
 <!-- Install steps -->
   <div style="margin-top:48px" class="reveal">
