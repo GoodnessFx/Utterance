@@ -192,7 +192,7 @@ assets/              # App icons, splash screen, demo GIFs.
 
 - **Node.js** 18+
 - **Electron** 31+ (desktop mode)
-- **Python 3.10–3.12** — optional, for local Whisper transcription (bundled in the Windows installer)
+- **Python 3.10–3.12** — optional, for local Whisper transcription (bundled in the Windows installer and the MacOS DMG)
 - **NDI 6 SDK** — optional, for NDI output
 
 ---
