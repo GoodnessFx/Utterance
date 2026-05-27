@@ -982,18 +982,27 @@ function _showWhisperSetupBanner(data) {
   if (reason === 'no_python') {
     icon     = '🎙️';
     title    = 'Local Whisper not installed';
-    detail   = 'Python and the Whisper AI engine are not installed. Click Set Up Now for a one-time setup — installs portable Python 3.12 + Whisper automatically (~200 MB). No system changes are made.';
+    const isMacOS = navigator.platform?.toLowerCase().includes('mac') || navigator.userAgent?.toLowerCase().includes('mac');
+    detail   = isMacOS
+      ? 'Python was not found. Click Set Up Now — it will install faster-whisper using your system Python automatically. Make sure Python 3 is installed (python.org or Homebrew).'
+      : 'Python and the Whisper AI engine are not installed. Click Set Up Now for a one-time setup — installs portable Python 3.12 + Whisper automatically (~200 MB). No system changes are made.';
     btnLabel = 'Set Up Now';
   } else if (reason === 'no_faster_whisper') {
     icon     = '⚠️';
     title    = 'Whisper engine missing';
-    detail   = 'Python is installed but the faster-whisper package is missing. Click Set Up Now to complete the installation.';
+    const isMacOS2 = navigator.platform?.toLowerCase().includes('mac') || navigator.userAgent?.toLowerCase().includes('mac');
+    detail   = isMacOS2
+      ? 'Python is installed but the faster-whisper package is missing. Click Set Up Now to install it automatically via pip.'
+      : 'Python is installed but the faster-whisper package is missing. Click Set Up Now to complete the installation.';
     btnLabel = 'Set Up Now';
   } else if (reason.startsWith('wrong_version:')) {
     const ver = reason.split(':')[1] || 'unknown';
+    const isMacOS3 = navigator.platform?.toLowerCase().includes('mac') || navigator.userAgent?.toLowerCase().includes('mac');
     icon     = '⚠️';
-    title    = `Python ${ver} is not supported`;
-    detail   = `Local Transcription requires Python 3.8 or newer. Your system has Python ${ver}. Click Set Up Now to install portable Python 3.12 automatically.`;
+    title    = `Python ${ver} is not compatible`;
+    detail   = isMacOS3
+      ? `faster-whisper requires Python 3.10 or newer. Your system has Python ${ver}. Install Python 3.12 via Homebrew: brew install python@3.12`
+      : `Local Transcription requires Python 3.10 or newer. Your system has Python ${ver}. Click Set Up Now to install portable Python 3.12 automatically.`;
     btnLabel = 'Set Up Now';
   } else if (reason === 'model_not_found') {
     icon     = '📥';
@@ -1943,8 +1952,41 @@ function startRecording() {
   };
   if (!hasSrc[State.whisperSource]) {
     if (State.whisperSource === 'local') {
-      // Show the detailed setup banner with a "Set Up Now" button
-      _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
+      // Check if Whisper server is still loading (process started but model not ready yet)
+      window.electronAPI?.whisperStatus?.().then(status => {
+        if (status && !status.ready) {
+          // Server is starting up — show loading state and wait
+          const btn = document.getElementById('recordBtn');
+          const origText = btn.textContent;
+          btn.textContent = '⏳ Whisper loading…';
+          btn.disabled = true;
+          toast('💻 Local Whisper is loading — please wait a moment…');
+          // Poll until ready (max 60s)
+          let tries = 0;
+          const poll = setInterval(async () => {
+            tries++;
+            const s = await window.electronAPI?.whisperStatus?.();
+            if (s?.ready) {
+              clearInterval(poll);
+              State.whisperLocalReady = true;
+              btn.textContent = origText;
+              btn.disabled = false;
+              toast('💻 Whisper ready — starting transcript');
+              startRecording();
+            } else if (tries > 30) {
+              clearInterval(poll);
+              btn.textContent = origText;
+              btn.disabled = false;
+              _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
+            }
+          }, 2000);
+        } else {
+          // Genuinely not set up
+          _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
+        }
+      }).catch(() => {
+        _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
+      });
     } else if (State.whisperSource === 'deepgram') {
       toast('⚠️ No Deepgram API key — add one in Settings → Audio, or set up Local Whisper.');
     } else {
@@ -5847,6 +5889,78 @@ function _wireMenuEvents() {
     if (result?.success) _applyLoadedSchedule(result.schedule);
     else toast('⚠ Could not load: ' + (result?.error || file));
   });
+
+  // ── Auto-updater events ──────────────────────────────────────────────────
+  window.electronAPI.on('update-available', (info) => {
+    _showUpdateBanner(info.version);
+  });
+  window.electronAPI.on('update-downloaded', (info) => {
+    _showUpdateReadyBanner(info.version);
+  });
+  window.electronAPI.on('update-download-progress', (data) => {
+    const bar = document.getElementById('updateProgressBar');
+    if (bar) bar.style.width = `${data.percent}%`;
+    const lbl = document.getElementById('updateProgressLabel');
+    if (lbl) lbl.textContent = `Downloading… ${data.percent}%`;
+  });
+}
+
+function _showUpdateBanner(version) {
+  // Remove existing if any
+  const existing = document.getElementById('updateBanner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'updateBanner';
+  banner.style.cssText = `
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#1a2035;border:1px solid #d4af37;border-radius:12px;
+    padding:14px 20px;z-index:9999;display:flex;align-items:center;
+    gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;
+  `;
+  banner.innerHTML = `
+    <div style="font-size:20px">🆕</div>
+    <div style="flex:1">
+      <div style="font-weight:700;color:#d4af37;font-size:13px">Update Available — v${version}</div>
+      <div id="updateProgressLabel" style="font-size:11px;color:#9aa4c7;margin-top:2px">Downloading in background…</div>
+      <div style="background:#0d1422;border-radius:4px;height:4px;margin-top:6px;overflow:hidden">
+        <div id="updateProgressBar" style="height:100%;background:#d4af37;width:0%;transition:width .3s"></div>
+      </div>
+    </div>
+    <button onclick="document.getElementById('updateBanner').remove()" style="
+      background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px
+    ">✕</button>
+  `;
+  document.body.appendChild(banner);
+}
+
+function _showUpdateReadyBanner(version) {
+  const existing = document.getElementById('updateBanner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'updateBanner';
+  banner.style.cssText = `
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#1a2035;border:1px solid #2ecc71;border-radius:12px;
+    padding:14px 20px;z-index:9999;display:flex;align-items:center;
+    gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;
+  `;
+  banner.innerHTML = `
+    <div style="font-size:20px">✅</div>
+    <div style="flex:1">
+      <div style="font-weight:700;color:#2ecc71;font-size:13px">v${version} Ready to Install</div>
+      <div style="font-size:11px;color:#9aa4c7;margin-top:2px">Restart AnchorCast to apply the update.</div>
+    </div>
+    <button onclick="window.electronAPI?.updaterInstallNow?.()" style="
+      background:#2ecc71;border:none;color:#000;font-weight:700;font-size:11px;
+      padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap
+    ">Restart & Install</button>
+    <button onclick="document.getElementById('updateBanner').remove()" style="
+      background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px
+    ">✕</button>
+  `;
+  document.body.appendChild(banner);
 }
 
 
@@ -9250,7 +9364,7 @@ function cycleTranscriptSource() {
   // Which sources are currently available
   const available = {
     deepgram: !!State.settings?.deepgramKey,
-    local:    !!State.whisperLocalReady,
+    local:    true, // always allow selecting local — we'll try to start Whisper
     cloud:    !!State.settings?.openAiKey,
   };
 
@@ -9264,7 +9378,6 @@ function cycleTranscriptSource() {
   }
 
   if (!picked) {
-    // Nothing configured — show specific guidance based on what's missing
     _showWhisperSetupBanner({
       reason: 'no_python',
       setupBatExists: true,
@@ -9287,6 +9400,23 @@ function cycleTranscriptSource() {
 
   State.whisperSource = picked;
 
+  // If switching to local and Whisper isn't ready yet, try to start it
+  if (picked === 'local' && !State.whisperLocalReady) {
+    toast('💻 Local Whisper — starting up…');
+    window.electronAPI?.whisperStart?.().then(result => {
+      if (result?.ready) {
+        State.whisperLocalReady = true;
+        updateSrcToggleUI();
+        toast('💻 Local Whisper — ready');
+      } else {
+        // Whisper failed to start — show setup banner
+        window.electronAPI?.runWhisperSetup?.();
+      }
+    }).catch(() => {
+      window.electronAPI?.runWhisperSetup?.();
+    });
+  }
+
   // If recording, switch live
   if (State.isRecording) {
     stopDeepgramSocket();
@@ -9298,7 +9428,7 @@ function cycleTranscriptSource() {
 
   const msgs = {
     deepgram: '⚡ Deepgram — real-time streaming active',
-    local:    '💻 Local Whisper — offline active',
+    local:    '💻 Local Whisper — offline',
     cloud:    '☁ OpenAI Whisper — cloud active',
   };
   toast(msgs[State.whisperSource]);
@@ -9351,8 +9481,9 @@ function startDeepgramStream() {
     smart_format:      'true',
     punctuate:         'true',
     interim_results:   'true',
-    utterance_end_ms:  '1200',
+    utterance_end_ms:  '600',   // reduced from 1200ms — faster sentence finalization
     vad_events:        'true',
+    no_delay:          'true',  // minimize Deepgram server-side buffering latency
     encoding:          'linear16',
     sample_rate:       '16000',
     channels:          '1',
@@ -9414,6 +9545,8 @@ function startDeepgramStream() {
 }
 
 function stopDeepgramSocket() {
+  _dgSendBuf = [];
+  _dgSendSize = 0;
   if (deepgramSocket) {
     try {
       // Send KeepAlive close signal to Deepgram
@@ -9429,9 +9562,27 @@ function stopDeepgramSocket() {
 }
 
 // Send PCM to Deepgram socket (called from AudioWorklet handler when source=deepgram)
+// Deepgram send buffer — batch small PCM chunks to reduce WebSocket overhead
+let _dgSendBuf = [];
+let _dgSendSize = 0;
+const _DG_SEND_THRESHOLD = 3200; // ~100ms at 16kHz (16-bit = 2 bytes/sample → 3200 bytes)
+
 function sendPcmToDeepgram(int16Buffer) {
   if (!deepgramSocket || deepgramSocket.readyState !== WebSocket.OPEN) return;
-  deepgramSocket.send(int16Buffer);
+  _dgSendBuf.push(int16Buffer);
+  _dgSendSize += int16Buffer.byteLength;
+  if (_dgSendSize >= _DG_SEND_THRESHOLD) {
+    // Merge and send
+    const merged = new Uint8Array(_dgSendSize);
+    let offset = 0;
+    for (const buf of _dgSendBuf) {
+      merged.set(new Uint8Array(buf), offset);
+      offset += buf.byteLength;
+    }
+    deepgramSocket.send(merged.buffer);
+    _dgSendBuf = [];
+    _dgSendSize = 0;
+  }
 }
 
 // ── Old toggle aliases (keep for compat) ──────────────────────────────────────
@@ -10183,7 +10334,7 @@ function showAboutModal() {
     <div style="background:#1a1a2e;border:1px solid #333;border-radius:14px;padding:36px 40px;max-width:440px;width:90%;color:#e0e0e0;font-family:inherit;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6);position:relative;">
       <div style="font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:6px;">&#10022;</div>
       <h2 style="margin:0 0 4px;font-size:24px;color:#fff;font-weight:700;">AnchorCast</h2>
-      <div style="font-size:13px;color:#888;margin-bottom:18px;">v1.2.0</div>
+      <div style="font-size:13px;color:#888;margin-bottom:18px;">${window.electronAPI?.appVersion ? 'v'+window.electronAPI.appVersion : 'v1.2.0'}</div>
       <p style="font-size:14px;line-height:1.7;color:#bbb;margin:0 0 18px;">
         AI-powered worship presentation, live sermon transcription &amp; Bible verse display for churches.
       </p>
