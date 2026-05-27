@@ -911,11 +911,23 @@ app.whenReady().then(async ()=>{
 
   if (_modelReady) {
     // Start Whisper after window is ready — guarantees process.resourcesPath is set
+    // Use longer delay after update to allow old process to fully exit
     _runAfterWindowReady(() => {
-      startWhisperServer(whisperModel).then(ok => {
-        if (!ok) console.log('[Whisper] Not available — use setup_whisper.bat to install');
-      });
-    }, 500);
+      let _whisperStartAttempts = 0;
+      const _tryStartWhisper = () => {
+        _whisperStartAttempts++;
+        startWhisperServer(whisperModel).then(ok => {
+          if (!ok && _whisperStartAttempts < 4) {
+            // Retry after 3s — old server may still be shutting down after update
+            console.log(`[Whisper] Start attempt ${_whisperStartAttempts} failed — retrying in 3s...`);
+            setTimeout(_tryStartWhisper, 3000);
+          } else if (!ok) {
+            console.log('[Whisper] Not available after 4 attempts — use setup_whisper.bat to install');
+          }
+        });
+      };
+      _tryStartWhisper();
+    }, 2000); // 2s delay — gives old process time to exit after update restart
   } else {
     // Model not installed — detect WHY and show the correct banner.
     // Must run after did-finish-load so mainWindow.webContents.send() is not lost.
@@ -1985,13 +1997,75 @@ ipcMain.on('presentation-add-to-schedule', (_evt, payload) => {
 });
 
 // ── Auto-updater ──────────────────────────────────────────────────────────────
+let _manualUpdateCheck = false;
+
+function checkForUpdatesManual() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Check for Updates',
+      message: 'Update checks are only available in the packaged app.',
+      detail: 'Run a production build to test auto-updates.',
+      buttons: ['OK'],
+    });
+    return;
+  }
+  try {
+    const { autoUpdater } = require('electron-updater');
+    _manualUpdateCheck = true;
+    mainWindow?.webContents.send('update-checking');
+    autoUpdater.checkForUpdates().catch(err => {
+      _manualUpdateCheck = false;
+      dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Update Check Failed',
+        message: 'Could not check for updates.',
+        detail: `Please check your internet connection and try again.\n\n${err.message}`,
+        buttons: ['OK'],
+      });
+    });
+  } catch(e) {
+    _manualUpdateCheck = false;
+    console.warn('[Updater] Manual check failed:', e.message);
+  }
+}
 function initAutoUpdater() {
   if (!app.isPackaged) return; // only run in production builds
   try {
     const { autoUpdater } = require('electron-updater');
 
-    autoUpdater.autoDownload = true;        // download in background
-    autoUpdater.autoInstallOnAppQuit = true; // install when user quits
+    // Smart channel detection:
+    // - Full build (has bundled model in Resources): use light channel for updates
+    //   because the model already exists in userData and doesn't need re-bundling
+    // - Light build: use light channel (model either not downloaded or in userData)
+    // Result: ALL users after first install use the light update channel
+    // which contains Python but no model — small update, model persists in userData
+    const bundledModelsPath = path.join(process.resourcesPath, 'models');
+    const hasBundledModel = fs.existsSync(bundledModelsPath) &&
+      fs.readdirSync(bundledModelsPath).some(f => f.startsWith('models--Systran'));
+    const isMac = process.platform === 'darwin';
+
+    if (hasBundledModel) {
+      // First run of full version — write flag to userData so we know model exists
+      const modelFlag = path.join(DATA_DIR, 'whisper_model_installed.flag');
+      try { if (!fs.existsSync(modelFlag)) fs.writeFileSync(modelFlag, 'full', 'utf8'); } catch(_) {}
+    }
+
+    // Check if user has ever had the full version (model flag exists in userData)
+    const modelFlag = path.join(DATA_DIR, 'whisper_model_installed.flag');
+    const hasModelFlag = fs.existsSync(modelFlag);
+
+    // Set channel based on platform and architecture
+    const arch = process.arch; // 'arm64' or 'x64'
+    if (isMac) {
+      autoUpdater.channel = arch === 'arm64' ? 'latest-mac-arm64' : 'latest-mac-x64';
+    } else {
+      autoUpdater.channel = 'latest';
+    }
+    console.log(`[Updater] Channel: ${autoUpdater.channel} | arch: ${arch}`);
+
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
 
     autoUpdater.on('checking-for-update', () => {
       console.log('[Updater] Checking for updates…');
@@ -2007,6 +2081,17 @@ function initAutoUpdater() {
 
     autoUpdater.on('update-not-available', () => {
       console.log('[Updater] App is up to date');
+      // Only show dialog if triggered by manual check
+      if (_manualUpdateCheck) {
+        _manualUpdateCheck = false;
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'AnchorCast is up to date',
+          message: `You're running the latest version.`,
+          detail: `AnchorCast v${app.getVersion()} is the latest version available.`,
+          buttons: ['OK'],
+        });
+      }
     });
 
     autoUpdater.on('download-progress', (progress) => {
@@ -2134,6 +2219,8 @@ function buildMenu(){
       {label:'Documentation & Help',accelerator:'F1',click:()=>createHelpWindow()},
       {label:'Get Started / Welcome',click:()=>mainWindow?.webContents.send('menu-show-getstarted')},
       {label:'Keyboard Shortcuts',click:showShortcuts},
+      {type:'separator'},
+      {label:'Check for Updates…',click:()=>checkForUpdatesManual()},
       {type:'separator'},
       {label:'Registration',click:()=>createRegistrationStatusWindow()},
       {label:'About AnchorCast',click:showAbout},
