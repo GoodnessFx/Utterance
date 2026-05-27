@@ -4,7 +4,7 @@ All notable changes to **AnchorCast** are documented here.
 
 ---
 
-## [1.3.0] — 2026-05 *(Upcoming)*
+## [1.3.0] — 2026-05 
 
 ### Added
 
