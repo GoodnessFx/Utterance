@@ -1288,9 +1288,16 @@ function setupElectronEvents() {
   });
 
   // Detailed whisper setup notification — fires when main process cannot find
-  // a working Python + faster-whisper installation
+  // a working Python + faster-whisper installation.
+  // Delay slightly to avoid flashing banner during post-update restart timing.
   window.electronAPI.on('whisper-setup-needed', (data) => {
-    _showWhisperSetupBanner(data);
+    // Small delay — prevents false banner during app restart after auto-update
+    setTimeout(() => {
+      // Only show if Whisper still isn't ready
+      if (!State.whisperLocalReady) {
+        _showWhisperSetupBanner(data);
+      }
+    }, 3000);
   });
 
   // Result from setup_whisper.bat — fires when main process detects flag file
@@ -5888,6 +5895,10 @@ function _wireMenuEvents() {
     const result = await window.electronAPI.loadScheduleFile(file);
     if (result?.success) _applyLoadedSchedule(result.schedule);
     else toast('⚠ Could not load: ' + (result?.error || file));
+  });
+
+  window.electronAPI.on('update-checking', () => {
+    toast('🔍 Checking for updates…');
   });
 
   // ── Auto-updater events ──────────────────────────────────────────────────
