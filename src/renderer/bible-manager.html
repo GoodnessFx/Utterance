@@ -1168,5 +1168,21 @@ function toast(msg) {
 
 init();
 </script>
+<script>
+(function(){
+  var v = window.electronAPI && window.electronAPI.appVersion;
+  if (!v) return;
+  document.querySelectorAll('[id*="version"],[id*="Version"],[class*="version"],[class*="Version"]').forEach(function(el) {
+    if (el.textContent.includes('v1.')) {
+      el.textContent = el.textContent.replace(/v1\.\d+\.\d+/g, 'v' + v);
+    }
+  });
+  document.querySelectorAll('*').forEach(function(el) {
+    if (el.children.length === 0 && el.textContent.match(/v1\.\d+\.\d+/)) {
+      el.textContent = el.textContent.replace(/v1\.\d+\.\d+/g, 'v' + v);
+    }
+  });
+})();
+</script>
 </body>
 </html>

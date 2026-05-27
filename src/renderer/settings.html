@@ -215,7 +215,7 @@
       <div class="preview-thumb" id="sidebarPreview">
         <div style="font-size:9px;color:var(--dim);text-align:center;padding:8px">Live preview</div>
       </div>
-      <div class="preview-label" id="versionInfo">AnchorCast v1.2.0</div>
+      <div class="preview-label" id="versionInfo">AnchorCast v1.VERSION</div>
     </div>
   </div>
 
@@ -1616,7 +1616,7 @@ YOUR</textarea>
 
 <!-- Bottom bar -->
 <div class="bottom-bar">
-  <div class="version" id="versionInfo">AnchorCast v1.2.0</div>
+  <div class="version" id="versionInfo">AnchorCast v1.VERSION</div>
   <div class="bottom-sp"></div>
   <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
   <button class="btn-save" onclick="saveSettings()">Save Settings</button>
@@ -3285,6 +3285,24 @@ function resetSongFontDefaults() {
 }
 
 init();
+</script>
+<script>
+(function(){
+  var v = window.electronAPI && window.electronAPI.appVersion;
+  if (!v) return;
+  // Update all elements that contain the version placeholder
+  document.querySelectorAll('[id*="version"],[id*="Version"]').forEach(function(el) {
+    if (el.textContent.includes('v1.VERSION')) {
+      el.textContent = el.textContent.replace(/v1\.VERSION/g, 'v' + v);
+    }
+  });
+  // Also update any text nodes
+  document.querySelectorAll('*').forEach(function(el) {
+    if (el.children.length === 0 && el.textContent.includes('v1.VERSION')) {
+      el.textContent = el.textContent.replace(/v1\.VERSION/g, 'v' + v);
+    }
+  });
+})();
 </script>
 </body>
 </html>
