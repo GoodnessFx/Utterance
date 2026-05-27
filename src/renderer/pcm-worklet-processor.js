@@ -7,10 +7,11 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     super();
     this._buffer = [];
     this._bufferSize = 0;
-    // Accumulate ~100ms of audio before sending (reduces IPC overhead)
-    // At 16kHz: 1600 samples = 100ms
-    // At 44.1kHz: 4410 samples = 100ms
-    this._flushSize = 2048; // flush every ~46ms at 44.1kHz (was 4096/~90ms)
+    // Accumulate ~100ms of audio before sending (reduces IPC overhead for Whisper)
+    // At 44.1kHz: 4410 samples = 100ms — good balance for both Deepgram and Whisper
+    // Smaller = lower latency for Deepgram but more IPC overhead
+    // Larger = higher latency but more efficient for local Whisper
+    this._flushSize = 4096; // ~93ms at 44.1kHz — reduced from 2048 (too frequent) 
   }
 
   process(inputs) {
