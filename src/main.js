@@ -5,16 +5,26 @@ const path=require('path');
 const os=require('os');
 
 // ── Force userData to use 'AnchorCast' (capital A+C) not 'anchorcast' ────────
-// Electron derives userData from package.json "name" which is lowercase.
-// We override it here before any path is read so all data goes to:
-// AppData\Roaming\AnchorCast\ (matching what users expect and what NSIS writes to)
-if (!app.isPackaged || process.platform === 'win32') {
-  const _userData = path.join(
-    process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-    'AnchorCast'
-  );
-  try { app.setPath('userData', _userData); } catch(_) {}
-}
+// Override userData to use consistent capitalised folder name on all platforms.
+// Windows: AppData\Roaming\AnchorCast\
+// Mac:     ~/Library/Application Support/AnchorCast/
+// Without this, Electron uses lowercase "anchorcast" from package.json name.
+(function() {
+  try {
+    let _userData;
+    if (process.platform === 'win32') {
+      _userData = path.join(
+        process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+        'AnchorCast'
+      );
+    } else if (process.platform === 'darwin') {
+      _userData = path.join(os.homedir(), 'Library', 'Application Support', 'anchorcast');
+    } else {
+      _userData = path.join(os.homedir(), '.config', 'AnchorCast');
+    }
+    app.setPath('userData', _userData);
+  } catch(_) {}
+})();
 
 // ── Timer standalone mode ─────────────────────────────────────────────────────
 // If launched with --timer flag, load timer-main.js and stop here.
@@ -910,36 +920,141 @@ app.whenReady().then(async ()=>{
     // Model not installed — detect WHY and show the correct banner.
     // Must run after did-finish-load so mainWindow.webContents.send() is not lost.
     _runAfterWindowReady(() => {
-      const setupBatExists = fs.existsSync(resolveRuntimeResource('setup_whisper.bat'));
-      const pyPaths = [
+      const isMac = process.platform === 'darwin';
+      const isWin = process.platform === 'win32';
+      const setupBatExists  = fs.existsSync(resolveRuntimeResource('setup_whisper.bat'));
+      const setupShExists   = fs.existsSync(resolveRuntimeResource('setup_whisper.sh'));
+      const setupScriptExists = isWin ? setupBatExists : setupShExists;
+
+      const { spawnSync: _spawnSync } = require('child_process');
+
+      // On Mac packaged apps, Electron strips PATH to /usr/bin:/bin.
+      // Restore it by reading the user's shell PATH at runtime.
+      let shellPath = process.env.PATH || '';
+      if (isMac) {
+        try {
+          const shell = process.env.SHELL || '/bin/zsh';
+          const r = _spawnSync(shell, ['-l', '-c', 'echo $PATH'], {
+            encoding: 'utf8', timeout: 5000,
+          });
+          if (r.status === 0 && r.stdout.trim()) {
+            shellPath = r.stdout.trim();
+          }
+        } catch { /* use existing PATH */ }
+      }
+
+      const _fullEnv = {
+        ...process.env,
+        PATH: [
+          process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
+          '/opt/homebrew/bin',
+          '/opt/homebrew/sbin',
+          '/usr/local/bin',
+          '/usr/bin',
+          '/bin',
+          shellPath,
+        ].filter(Boolean).join(':'),
+        PYTHONPATH: [
+          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.14/site-packages` : '',
+          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.13/site-packages` : '',
+          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.12/site-packages` : '',
+          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.11/site-packages` : '',
+          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.10/site-packages` : '',
+          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.9/site-packages` : '',
+          process.env.PYTHONPATH || '',
+        ].filter(Boolean).join(':'),
+      };
+
+      // Find Python — bundled python takes priority over system Python
+      // so that faster_whisper (installed in bundled python) is always found
+      const bundledPy312 = resolveRuntimeResource('python', 'bin', 'python3.12');
+      const bundledPy3   = resolveRuntimeResource('python', 'bin', 'python3');
+
+      const pyCandidates = isWin ? [
         path.join(process.resourcesPath || '', 'python', 'python.exe'),
         path.join(app.getAppPath(), 'python', 'python.exe'),
         path.join(__dirname, '..', 'python', 'python.exe'),
         path.join(process.cwd(), 'python', 'python.exe'),
+        'python', 'python3',
+      ] : [
+        // Bundled python FIRST — has faster_whisper installed
+        bundledPy312,
+        bundledPy3,
+        // System fallbacks
+        '/opt/homebrew/bin/python3.12',
+        '/opt/homebrew/bin/python3.13',
+        '/opt/homebrew/bin/python3.14',
+        '/opt/homebrew/bin/python3.11',
+        '/opt/homebrew/bin/python3.10',
+        '/opt/homebrew/bin/python3',
+        '/usr/local/bin/python3',
+        '/usr/bin/python3',
+        'python3', 'python',
       ];
-      const bundledPy = pyPaths.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || '';
-      const hasPython = !!bundledPy;
+
+      let activePy = null;
+      for (const candidate of pyCandidates) {
+        try {
+          const r = _spawnSync(candidate, ['-c',
+            'import sys; v=sys.version_info; exit(0 if v.major==3 and v.minor>=10 else 1)'
+          ], {
+            encoding: 'utf8', timeout: 3000, windowsHide: true, env: _fullEnv,
+          });
+          if (r.status === 0) {
+            activePy = candidate;
+            console.log(`[Whisper] Found Python >=3.10 at: ${candidate}`);
+            break;
+          }
+        } catch { /* try next */ }
+      }
+
+      const hasPython = !!activePy;
 
       if (!hasPython) {
         console.log('[Whisper] Python not found — showing no_python banner');
-        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_python', setupBatExists });
+        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_python', setupBatExists: setupScriptExists });
         return;
       }
 
       const { spawnSync } = require('child_process');
-      const fwCheck = spawnSync(bundledPy, ['-c', 'from faster_whisper import WhisperModel'], {
-        encoding: 'utf8', timeout: 8000, windowsHide: true,
-      });
 
-      if (fwCheck.status !== 0) {
+      // Build full candidate list to check faster_whisper against all available Pythons
+      const allPyCandidates = [...new Set([
+        activePy,
+        '/opt/homebrew/bin/python3.14',
+        '/opt/homebrew/bin/python3.13',
+        '/opt/homebrew/bin/python3.12',
+        '/opt/homebrew/bin/python3',
+        '/usr/local/bin/python3',
+        '/usr/bin/python3',
+        'python3',
+      ].filter(Boolean))];
+
+      // Check with full env so pip --user packages are visible
+      let fwOk = false;
+      for (const pyCandidate of allPyCandidates) {
+        try {
+          const r = spawnSync(pyCandidate, ['-c', 'from faster_whisper import WhisperModel'], {
+            encoding: 'utf8', timeout: 8000, windowsHide: true, env: _fullEnv,
+          });
+          if (r.status === 0) { fwOk = true; break; }
+          // Also try with --user site enabled explicitly
+          const r2 = spawnSync(pyCandidate, ['-c',
+            'import site, sys; sys.path += [site.getusersitepackages()] if hasattr(site,"getusersitepackages") else []; from faster_whisper import WhisperModel'
+          ], { encoding: 'utf8', timeout: 8000, windowsHide: true, env: _fullEnv });
+          if (r2.status === 0) { fwOk = true; break; }
+        } catch { /* try next */ }
+      }
+
+      if (!fwOk) {
         console.log('[Whisper] faster-whisper missing — showing no_faster_whisper banner');
-        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_faster_whisper', setupBatExists });
+        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_faster_whisper', setupBatExists: setupScriptExists });
         return;
       }
 
       console.log('[Whisper] Model not found — showing model_not_found banner');
       mainWindow?.webContents.send('whisper-setup-needed', {
-        reason: 'model_not_found', model: whisperModel, setupBatExists,
+        reason: 'model_not_found', model: whisperModel, setupBatExists: setupScriptExists,
       });
     }, 2000); // 2s after window ready — allows renderer IPC to fully register
   }
@@ -950,6 +1065,12 @@ ipcMain.on('transcript-unsaved-state', (_, unsaved) => { _transcriptUnsaved = un
 
 // Before closing: if there's an unsaved transcript, ask the user
 app.on('before-quit', (e) => {
+  // Always stop Whisper server on quit (important on Mac where window-all-closed doesn't quit)
+  stopWhisperServer();
+  stopNdi();
+  stopHttpServer();
+  if(rendererServer){ rendererServer.close(); rendererServer=null; }
+
   if (!_transcriptUnsaved) return;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   e.preventDefault(); // block quit temporarily
@@ -959,6 +1080,7 @@ app.on('before-quit', (e) => {
 // Renderer confirmed: save then quit, or just quit
 ipcMain.on('quit-confirmed', () => { _transcriptUnsaved = false; app.quit(); });
 ipcMain.on('quit-cancelled', () => { /* do nothing — user changed mind */ });
+ipcMain.on('get-app-version', (e) => { e.returnValue = app.getVersion(); });
 
 app.on('window-all-closed',()=>{
   // Guard: do not quit if mainWindow still exists — it may be temporarily
@@ -1384,6 +1506,7 @@ function createMainWindow(){
       mainWindow.maximize();
       mainWindow.show();
       mainWindow.webContents.send('app-ready');
+      initAutoUpdater();
       // Fade main window in 0→1 over ~100ms
       let op = 0;
       const tick = () => {
@@ -1861,8 +1984,69 @@ ipcMain.on('presentation-add-to-schedule', (_evt, payload) => {
   mainWindow?.webContents.send('presentation-add-to-schedule', payload || {});
 });
 
-// ── Menu ──────────────────────────────────────────────────────────────────────
+// ── Auto-updater ──────────────────────────────────────────────────────────────
+function initAutoUpdater() {
+  if (!app.isPackaged) return; // only run in production builds
+  try {
+    const { autoUpdater } = require('electron-updater');
+
+    autoUpdater.autoDownload = true;        // download in background
+    autoUpdater.autoInstallOnAppQuit = true; // install when user quits
+
+    autoUpdater.on('checking-for-update', () => {
+      console.log('[Updater] Checking for updates…');
+    });
+
+    autoUpdater.on('update-available', (info) => {
+      console.log(`[Updater] Update available: v${info.version}`);
+      mainWindow?.webContents.send('update-available', {
+        version: info.version,
+        releaseNotes: info.releaseNotes || '',
+      });
+    });
+
+    autoUpdater.on('update-not-available', () => {
+      console.log('[Updater] App is up to date');
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+      const pct = Math.round(progress.percent);
+      mainWindow?.webContents.send('update-download-progress', { percent: pct });
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log(`[Updater] Update downloaded: v${info.version}`);
+      mainWindow?.webContents.send('update-downloaded', {
+        version: info.version,
+      });
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.warn('[Updater] Error:', err.message);
+    });
+
+    // Check for updates 5 seconds after app starts, then every 6 hours
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(e => console.warn('[Updater]', e.message));
+    }, 5000);
+    setInterval(() => {
+      autoUpdater.checkForUpdates().catch(e => console.warn('[Updater]', e.message));
+    }, 6 * 60 * 60 * 1000);
+
+    // IPC handlers
+    ipcMain.handle('updater-install-now', () => {
+      autoUpdater.quitAndInstall(false, true);
+    });
+    ipcMain.handle('updater-check-now', () => {
+      return autoUpdater.checkForUpdates().catch(e => ({ error: e.message }));
+    });
+
+  } catch(e) {
+    console.warn('[Updater] Could not init:', e.message);
+  }
+}
 function buildMenu(){
+  const isMac = process.platform === 'darwin';
   const t=[
     // ── File ──────────────────────────────────────────────────────────────
     {label:'File',submenu:[
@@ -1892,6 +2076,22 @@ function buildMenu(){
       {type:'separator'},
       {label:'Exit',accelerator:'Alt+F4',role:'quit'},
     ]},
+    // ── Edit — required on Mac for Cmd+C/V/X/A/Z to work in text inputs ──
+    {label:'Edit',submenu:[
+      {role:'undo'},
+      {role:'redo'},
+      {type:'separator'},
+      {role:'cut'},
+      {role:'copy'},
+      {role:'paste'},
+      {role:'pasteAndMatchStyle'},
+      {role:'delete'},
+      {role:'selectAll'},
+      ...(isMac ? [
+        {type:'separator'},
+        {label:'Speech',submenu:[{role:'startSpeaking'},{role:'stopSpeaking'}]},
+      ] : []),
+    ]},
     // ── Settings ──────────────────────────────────────────────────────────
     {label:'Settings',submenu:[
       {label:'Preferences…',accelerator:'CmdOrCtrl+,',click:()=>createSettingsWindow()},
@@ -1911,7 +2111,8 @@ function buildMenu(){
     ]},
     // ── Display ───────────────────────────────────────────────────────────
     {label:'Display',submenu:[
-      {label:'Open Projection',accelerator:'CmdOrCtrl+P',click:()=>{
+      // Cmd+P freed for Paste — use Cmd+Shift+P for projection
+      {label:'Open Projection',accelerator:'CmdOrCtrl+Shift+P',click:()=>{
         createProjectionWindow(screen.getAllDisplays()[0].id);
       }},
       {label:'Close Projection',click:()=>{if(projectionWindow)projectionWindow.close();}},
@@ -1939,7 +2140,6 @@ function buildMenu(){
     ]},
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(t));
-  // Recent schedules are populated inline via _getRecentScheduleItems() above
 }
 
 function _getRecentScheduleItems(){
@@ -5236,7 +5436,12 @@ function _runAfterWindowReady(fn, extraDelay = 0) {
 
 async function startWhisperServer(model = 'small.en') {
   // Already running?
-  if (await checkWhisperRunning()) { whisperReady = true; return true; }
+  if (await checkWhisperRunning()) {
+    whisperReady = true;
+    console.log('[Whisper] Server already running — ready ✓');
+    mainWindow?.webContents.send('whisper-status', { ready: true, model });
+    return true;
+  }
 
   // Script exists?
   if (!fs.existsSync(WHISPER_SCRIPT)) {
@@ -5245,39 +5450,96 @@ async function startWhisperServer(model = 'small.en') {
   }
 
   // ── Find Python ─────────────────────────────────────────────────────────────
-  const bundledPy    = resolveRuntimeResource('python', 'python.exe'); // Windows bundled
-  const bundledPyMac = resolveRuntimeResource('python', 'bin', 'python3'); // Mac/Linux
+  const bundledPy     = resolveRuntimeResource('python', 'python.exe');        // Windows
+  const bundledPyMac  = resolveRuntimeResource('python', 'bin', 'python3');    // Mac symlink
+  const bundledPyMac312 = resolveRuntimeResource('python', 'bin', 'python3.12'); // Mac real binary
 
   // Check cached Python path first (speeds up subsequent startups)
   let cachedPy = null;
   try {
     const cached = fs.readFileSync(WHISPER_CACHE, 'utf-8').trim();
-    if (cached && fs.existsSync(cached)) cachedPy = cached;
+    // Only use cached path if it points to the bundled python (avoid caching system python)
+    if (cached && fs.existsSync(cached) && cached.includes('python')) cachedPy = cached;
   } catch {}
 
-  // Build candidate list — cached and bundled first, then system
+  // Build candidate list — bundled python FIRST so faster_whisper is always found
   const candidates = [
     ...(cachedPy ? [cachedPy] : []),
-    process.platform === 'win32' ? bundledPy : bundledPyMac,
+    process.platform === 'win32' ? bundledPy : bundledPyMac312, // real binary first
+    process.platform === 'win32' ? bundledPy : bundledPyMac,    // symlink fallback
     ...(process.platform === 'win32' ? ['python', 'python3'] : ['python3', 'python']),
-  ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
+  ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
   const { execFileSync } = require('child_process');
 
+  // On Mac/Linux, pip --user installs to ~/.local — include it in PATH/PYTHONPATH
+  // Also restore shell PATH since Electron packaged apps strip it to /usr/bin:/bin
+  let _shellPath = process.env.PATH || '';
+  if (process.platform === 'darwin') {
+    try {
+      const _sh = process.env.SHELL || '/bin/zsh';
+      const _sr = require('child_process').spawnSync(_sh, ['-l', '-c', 'echo $PATH'], { encoding: 'utf8', timeout: 5000 });
+      if (_sr.status === 0 && _sr.stdout.trim()) _shellPath = _sr.stdout.trim();
+    } catch { /* keep existing PATH */ }
+  }
+  const _pyEnv = process.platform !== 'win32' ? {
+    ...process.env,
+    PATH: [
+      process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      _shellPath,
+    ].filter(Boolean).join(':'),
+    PYTHONPATH: [
+      // Bundled Python's own site-packages — FIRST so it finds faster_whisper
+      path.join(resolveRuntimeResource('python'), 'lib', 'python3.12', 'site-packages'),
+      path.join(resolveRuntimeResource('python'), 'lib', 'python3.11', 'site-packages'),
+      path.join(resolveRuntimeResource('python'), 'lib', 'python3.10', 'site-packages'),
+      // User site-packages fallback
+      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.14/site-packages` : '',
+      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.13/site-packages` : '',
+      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.12/site-packages` : '',
+      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.11/site-packages` : '',
+      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.10/site-packages` : '',
+      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.9/site-packages` : '',
+      process.env.PYTHONPATH || '',
+    ].filter(Boolean).join(':'),
+    // Also set PYTHONHOME so bundled Python finds its stdlib
+    PYTHONHOME: resolveRuntimeResource('python'),
+  } : process.env;
+
+  // Mac candidates — bundled python FIRST, then system fallbacks
+  const macExtraCandidates = process.platform === 'darwin'
+    ? [
+        bundledPyMac312,
+        bundledPyMac,
+        '/opt/homebrew/bin/python3.12',
+        '/opt/homebrew/bin/python3.13',
+        '/opt/homebrew/bin/python3.14',
+        '/opt/homebrew/bin/python3.11',
+        '/opt/homebrew/bin/python3.10',
+        '/opt/homebrew/bin/python3',
+        '/usr/local/bin/python3',
+        '/usr/bin/python3',
+      ]
+    : [];
+
   let pythonExe = null;
-  for (const candidate of candidates) {
+  for (const candidate of [...candidates, ...macExtraCandidates].filter((v,i,a)=>a.indexOf(v)===i)) {
     try {
       execFileSync(candidate, ['-c',
-        'import sys; v=sys.version_info; exit(0 if v.major==3 and 8<=v.minor<=12 else 1)'
-      ], { timeout: 4000, windowsHide: true });
+        'import sys; v=sys.version_info; exit(0 if v.major==3 and v.minor>=10 else 1)'
+      ], { timeout: 4000, windowsHide: true, env: _pyEnv });
       execFileSync(candidate, ['-c',
         'from faster_whisper import WhisperModel'
-      ], { timeout: 6000, windowsHide: true });
+      ], { timeout: 6000, windowsHide: true, env: _pyEnv });
       pythonExe = candidate;
-      const label = (candidate === bundledPy || candidate === bundledPyMac)
+      const label = (candidate === bundledPy || candidate === bundledPyMac || candidate === bundledPyMac312)
         ? 'bundled' : candidate === cachedPy ? 'cached' : 'system';
       console.log(`[Whisper] Found ${label} Python: ${candidate}`);
-      // Cache for next startup
       try { fs.writeFileSync(WHISPER_CACHE, candidate, 'utf-8'); } catch {}
       break;
     } catch { /* try next */ }
@@ -5286,16 +5548,13 @@ async function startWhisperServer(model = 'small.en') {
   if (!pythonExe) {
     // Diagnose WHY Python wasn't found so we can show the user a specific message
     let whisperFailReason = 'no_python'; // default
-    for (const candidate of candidates) {
+    for (const candidate of [...candidates, ...macExtraCandidates].filter((v,i,a)=>a.indexOf(v)===i)) {
       try {
-        // Can we run it at all?
         execFileSync(candidate, ['--version'], { timeout: 3000, windowsHide: true });
-        // It runs — check version
         try {
           execFileSync(candidate, ['-c',
-            'import sys; v=sys.version_info; exit(0 if v.major==3 and 8<=v.minor<=12 else 1)'
-          ], { timeout: 3000, windowsHide: true });
-          // Version OK — faster_whisper must be missing
+            'import sys; v=sys.version_info; exit(0 if v.major==3 and v.minor>=10 else 1)'
+          ], { timeout: 3000, windowsHide: true, env: _pyEnv });
           whisperFailReason = 'no_faster_whisper';
         } catch {
           // Python exists but wrong version
@@ -5356,6 +5615,23 @@ async function startWhisperServer(model = 'small.en') {
     }
   }
 
+  const whisperEnv = process.platform !== 'win32' ? {
+    ...process.env,
+    PATH: [
+      process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      process.env.PATH || '',
+    ].filter(Boolean).join(':'),
+    PYTHONHOME: resolveRuntimeResource('python'),
+    PYTHONPATH: [
+      path.join(resolveRuntimeResource('python'), 'lib', 'python3.12', 'site-packages'),
+      path.join(resolveRuntimeResource('python'), 'lib', 'python3.11', 'site-packages'),
+      path.join(resolveRuntimeResource('python'), 'lib', 'python3.10', 'site-packages'),
+      process.env.PYTHONPATH || '',
+    ].filter(Boolean).join(':'),
+  } : process.env;
+
   whisperProc = spawn(pythonExe, [
     WHISPER_SCRIPT,
     '--model',           model,
@@ -5364,8 +5640,8 @@ async function startWhisperServer(model = 'small.en') {
   ], {
     stdio:       ['ignore', 'pipe', 'pipe'],
     detached:    false,
-    windowsHide: true,   // suppress console window on Windows
-    // NO shell:true — we use execFile-style with full path, avoids quoting issues
+    windowsHide: true,
+    env:         whisperEnv,
   });
 
   let _whisperStderr = '';
@@ -5439,9 +5715,20 @@ async function startWhisperServer(model = 'small.en') {
 
 function stopWhisperServer() {
   if (whisperProc) {
-    whisperProc.kill();
+    const proc = whisperProc;
     whisperProc  = null;
     whisperReady = false;
+    try { proc.kill('SIGTERM'); } catch(_) {}
+    // Force kill after 2s if still running
+    setTimeout(() => {
+      try { proc.kill('SIGKILL'); } catch(_) {}
+    }, 2000);
+  }
+  // Also kill any orphaned whisper_server.py processes by name (Mac safety net)
+  if (process.platform !== 'win32') {
+    try {
+      require('child_process').execSync('pkill -f whisper_server.py 2>/dev/null || true', { timeout: 3000 });
+    } catch(_) {}
   }
 }
 
@@ -5491,12 +5778,21 @@ ipcMain.handle('download-whisper-model', async (_, modelId) => {
   if (!info) return { ok: false, error: 'Unknown model: ' + modelId };
   if (isModelInstalled(modelId)) return { ok: true, already: true };
 
-  const pythonExe = resolveRuntimeResource('python', 'python.exe');
-  if (!fs.existsSync(pythonExe)) return { ok: false, error: 'Python not found' };
+  // Find Python cross-platform
+  const { execFileSync: _efs2 } = require('child_process');
+  const pyWin = resolveRuntimeResource('python', 'python.exe');
+  const pyMac = resolveRuntimeResource('python', 'bin', 'python3');
+  const systemCandidates = process.platform === 'win32'
+    ? [pyWin, 'python', 'python3']
+    : [pyMac, '/opt/homebrew/bin/python3', '/usr/local/bin/python3', '/usr/bin/python3', 'python3', 'python'];
+  let pythonExe = null;
+  for (const c of systemCandidates) {
+    try { _efs2(c, ['--version'], { timeout: 3000, windowsHide: true }); pythonExe = c; break; } catch { /* try next */ }
+  }
+  if (!pythonExe) return { ok: false, error: 'Python not found. Please install Python 3 to download Whisper models.' };
 
   try { fs.mkdirSync(WHISPER_MODEL_DIR, { recursive: true }); } catch(_) {}
 
-  // Download model using Python in background — sends progress via IPC
   const script = `
 import sys
 from faster_whisper import WhisperModel
@@ -5552,18 +5848,194 @@ ipcMain.handle('whisper-diagnostics', () => {
   };
 });
 
-// Trigger setup_whisper.bat from within the app (e.g. when Python not found at startup)
+// Trigger whisper setup from within the app
 ipcMain.handle('run-whisper-setup', async () => {
-  // Check if bundled Python exists — use it directly instead of setup_whisper.bat
-  const bundledPy = resolveRuntimeResource('python', 'python.exe');
-  const hasBundledPy = fs.existsSync(bundledPy);
+  const isWin = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
 
+  // ── Restore shell PATH on Mac (Electron strips it) ──────────────────────
+  const { execFileSync: _efs, spawnSync: _ss } = require('child_process');
+  let _setupShellPath = process.env.PATH || '';
+  if (isMac) {
+    try {
+      const _sh = process.env.SHELL || '/bin/zsh';
+      const _r = _ss(_sh, ['-l', '-c', 'echo $PATH'], { encoding: 'utf8', timeout: 5000 });
+      if (_r.status === 0 && _r.stdout.trim()) _setupShellPath = _r.stdout.trim();
+    } catch { /* keep existing */ }
+  }
+  const _setupEnv = {
+    ...process.env,
+    PATH: [
+      process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
+      '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin',
+      _setupShellPath,
+    ].filter(Boolean).join(':'),
+  };
+
+  const bundledPyWin = resolveRuntimeResource('python', 'python.exe');
+  const bundledPyMac = resolveRuntimeResource('python', 'bin', 'python3');
+
+  const candidates = isWin
+    ? [bundledPyWin, 'python', 'python3']
+    : [bundledPyMac,
+       '/opt/homebrew/bin/python3.12', // preferred
+       '/opt/homebrew/bin/python3.13',
+       '/opt/homebrew/bin/python3.14',
+       '/opt/homebrew/bin/python3.11',
+       '/opt/homebrew/bin/python3.10',
+       '/opt/homebrew/bin/python3',
+       '/usr/local/bin/python3',
+       '/usr/bin/python3',
+       'python3', 'python'];
+
+  let pythonExe = null;
+  for (const c of candidates) {
+    try {
+      _efs(c, ['--version'], { timeout: 3000, windowsHide: true, env: _setupEnv });
+      pythonExe = c;
+      break;
+    } catch { /* try next */ }
+  }
+
+  if (!pythonExe) {
+    return { ok: false, error: isMac
+      ? 'Python 3 not found. Install it from python.org or via Homebrew: brew install python3'
+      : 'Python not found and setup_whisper.bat missing. Please reinstall AnchorCast.' };
+  }
+
+  // ── Mac / Linux path: pip install faster-whisper then download model ────
+  if (!isWin) {
+    return new Promise((resolve) => {
+      mainWindow?.webContents.send('whisper-model-progress', {
+        modelId: whisperModel || 'small.en',
+        line: 'Installing faster-whisper (this may take a minute)…'
+      });
+
+      // Try pip install strategies in order — Mac may block system pip without --break-system-packages
+      const pipStrategies = [
+        [pythonExe, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'faster-whisper', '--break-system-packages']],
+        [pythonExe, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'faster-whisper', '--user']],
+        [pythonExe, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'faster-whisper']],
+        ['pip3',    ['install', '--quiet', '--upgrade', 'faster-whisper', '--break-system-packages']],
+        ['pip3',    ['install', '--quiet', '--upgrade', 'faster-whisper', '--user']],
+        ['pip3',    ['install', '--quiet', '--upgrade', 'faster-whisper']],
+      ];
+
+      let strategyIdx = 0;
+
+      function tryNextPipStrategy() {
+        if (strategyIdx >= pipStrategies.length) {
+          resolve({ ok: false, error: 'pip install failed on all strategies. Open Terminal and run: pip3 install faster-whisper --break-system-packages' });
+          return;
+        }
+        const [bin, args] = pipStrategies[strategyIdx++];
+        console.log(`[Whisper] pip strategy ${strategyIdx}: ${bin} ${args.join(' ')}`);
+
+        let pip;
+        try {
+          pip = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch(e) {
+          tryNextPipStrategy();
+          return;
+        }
+
+        let stderr = '';
+        pip.stdout.on('data', d => {
+          mainWindow?.webContents.send('whisper-model-progress', {
+            modelId: whisperModel || 'small.en', line: String(d).trim()
+          });
+        });
+        pip.stderr.on('data', d => {
+          stderr += String(d);
+          const line = String(d).trim();
+          if (line && !line.startsWith('WARNING') && !line.includes('already satisfied')) {
+            mainWindow?.webContents.send('whisper-model-progress', {
+              modelId: whisperModel || 'small.en', line
+            });
+          }
+        });
+        pip.on('error', () => tryNextPipStrategy());
+        pip.on('exit', (pipCode) => {
+          if (pipCode !== 0) {
+            tryNextPipStrategy();
+            return;
+          }
+
+          // pip succeeded — now download the model
+          const modelDir = WHISPER_MODEL_DIR;
+          try { fs.mkdirSync(modelDir, { recursive: true }); } catch(_) {}
+
+          const scriptPath = path.join(app.getPath('temp'), 'ac_get_model.py');
+          const script = [
+            "import os, warnings, logging, sys",
+            "os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'",
+            "os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'",
+            "warnings.filterwarnings('ignore')",
+            "logging.disable(logging.CRITICAL)",
+            "from faster_whisper import WhisperModel",
+            `d = '${modelDir.replace(/\\/g, '/')}'`,
+            "model_id = sys.argv[1] if len(sys.argv) > 1 else 'small.en'",
+            "os.makedirs(d, exist_ok=True)",
+            "WhisperModel(model_id, device='cpu', compute_type='int8', download_root=d)",
+            "print('MODEL_READY', flush=True)",
+          ].join('\n');
+          fs.writeFileSync(scriptPath, script, 'utf-8');
+
+          mainWindow?.webContents.send('whisper-model-progress', {
+            modelId: whisperModel || 'small.en',
+            line: `Downloading Whisper model (${whisperModel || 'small.en'})…`
+          });
+
+          const proc = spawn(pythonExe, ['-W', 'ignore', scriptPath, whisperModel || 'small.en'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          let output = '';
+          proc.stdout.on('data', d => {
+            output += String(d);
+            mainWindow?.webContents.send('whisper-model-progress', {
+              modelId: whisperModel || 'small.en', line: String(d).trim()
+            });
+          });
+          proc.stderr.on('data', d => {
+            const line = String(d).trim();
+            if (line && !line.includes('UserWarning') && !line.includes('HF_TOKEN')) {
+              mainWindow?.webContents.send('whisper-model-progress', {
+                modelId: whisperModel || 'small.en', line
+              });
+            }
+          });
+          proc.on('exit', (code) => {
+            try { fs.unlinkSync(scriptPath); } catch(_) {}
+            if (code === 0 || output.includes('MODEL_READY')) {
+              startWhisperServer(whisperModel).then(() => {
+                mainWindow?.webContents.send('whisper-setup-result', {
+                  success: true, message: 'Whisper is ready! Restarting AnchorCast…'
+                });
+                setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);
+              });
+              resolve({ ok: true });
+            } else {
+              resolve({ ok: false, error: `Model download failed (code ${code})` });
+            }
+          });
+          proc.on('error', e => {
+            try { fs.unlinkSync(scriptPath); } catch(_) {}
+            resolve({ ok: false, error: e.message });
+          });
+        }); // end pip.on('exit')
+      } // end tryNextPipStrategy
+
+      tryNextPipStrategy(); // kick off
+    });
+  }
+
+  // ── Windows path: bundled python.exe or setup_whisper.bat ───────────────
+  const hasBundledPy = fs.existsSync(bundledPyWin);
   if (hasBundledPy) {
-    // Python is bundled — just download the missing model directly, no console window
+    // Python is bundled — download model directly, no console window
     const modelDir = WHISPER_MODEL_DIR;
     try { fs.mkdirSync(modelDir, { recursive: true }); } catch(_) {}
 
-    // Write a silent Python script to download the model
     const scriptPath = path.join(app.getPath('temp'), 'ac_get_model.py');
     const script = [
       "import os, warnings, logging",
@@ -5580,40 +6052,33 @@ ipcMain.handle('run-whisper-setup', async () => {
       "WhisperModel(model_id, device='cpu', compute_type='int8', download_root=d)",
       "print('MODEL_READY', flush=True)",
     ].join('\n');
-
     fs.writeFileSync(scriptPath, script, 'utf-8');
 
     return new Promise((resolve) => {
-      const proc = spawn(bundledPy, ['-W', 'ignore', scriptPath, whisperModel || 'small.en'], {
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
+      const proc = spawn(bundledPyWin, ['-W', 'ignore', scriptPath, whisperModel || 'small.en'], {
+        windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
       });
-
       let output = '';
       proc.stdout.on('data', d => {
         output += String(d);
         mainWindow?.webContents.send('whisper-model-progress', {
-          modelId: whisperModel || 'small.en',
-          line: String(d).trim()
+          modelId: whisperModel || 'small.en', line: String(d).trim()
         });
       });
       proc.stderr.on('data', d => {
         const line = String(d).trim();
         if (line && !line.includes('UserWarning') && !line.includes('HF_TOKEN') && !line.includes('symlink')) {
           mainWindow?.webContents.send('whisper-model-progress', {
-            modelId: whisperModel || 'small.en',
-            line
+            modelId: whisperModel || 'small.en', line
           });
         }
       });
-
       proc.on('exit', (code) => {
         try { fs.unlinkSync(scriptPath); } catch(_) {}
         if (code === 0 || output.includes('MODEL_READY')) {
           startWhisperServer(whisperModel).then(() => {
             mainWindow?.webContents.send('whisper-setup-result', {
-              success: true,
-              message: 'Whisper is ready! Restarting AnchorCast...'
+              success: true, message: 'Whisper is ready! Restarting AnchorCast...'
             });
             setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);
           });
@@ -5622,7 +6087,6 @@ ipcMain.handle('run-whisper-setup', async () => {
           resolve({ ok: false, error: `Model download failed (code ${code})` });
         }
       });
-
       proc.on('error', e => {
         try { fs.unlinkSync(scriptPath); } catch(_) {}
         resolve({ ok: false, error: e.message });
@@ -5630,7 +6094,7 @@ ipcMain.handle('run-whisper-setup', async () => {
     });
   }
 
-  // Fallback: no bundled Python — run setup_whisper.bat
+  // Last resort Windows fallback: run setup_whisper.bat
   const setupBat = resolveRuntimeResource('setup_whisper.bat');
   if (!fs.existsSync(setupBat)) {
     return { ok: false, error: 'Python not found and setup_whisper.bat missing. Please reinstall AnchorCast.' };
@@ -5729,8 +6193,8 @@ let pcmQueue        = [];
 //   Too much overlap (> 1s) → stitching drops valid new lines.
 // RMS GATE: 180 = quiet room background noise threshold.
 //   Raise to 300+ if the mic picks up PA system hum.
-const PCM_FLUSH_SECONDS    = 4.5;
-const PCM_OVERLAP_SECONDS  = 0.75;
+const PCM_FLUSH_SECONDS    = 3.5;  // reduced from 4.5s — less lag, still enough for accuracy
+const PCM_OVERLAP_SECONDS  = 0.5;  // reduced from 0.75s — less overlap needed at 3.5s chunks
 const PCM_MIN_RMS          = 180;
 const PCM_MIN_ACTIVE_RATIO = 0.012;
 const PCM_MAX_QUEUE_CHUNKS = 3;
@@ -5858,7 +6322,7 @@ async function processNextChunk() {
         }
       } catch (e) {
         if (e.name === 'TimeoutError') console.warn('[Whisper] Timeout — try base.en or tiny.en on slower CPUs');
-        else console.warn('[Whisper] request failed:', e.message);
+        else if (whisperReady) console.warn('[Whisper] request failed:', e.message); // only log if was ready
         if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') {
           whisperReady = false;
           mainWindow?.webContents.send('whisper-status', { ready: false });
