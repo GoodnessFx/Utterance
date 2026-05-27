@@ -1142,7 +1142,7 @@ footer{
     /* Show known baselines immediately */
     animateCounter(['dlCount','statDl'], KNOWN_DOWNLOADS);
     animateCounter(['starCount','ghStars','starCountHero'], KNOWN_STARS);
-    setText(['releaseVer','relTag'], 'v1.2.0');
+    setText(['releaseVer','relTag'], 'v1.3.0');
 
     /* ── Downloads: GitHub API → Shields.io fallback ── */
     fetch(BASE + '/releases?per_page=100')
@@ -1195,16 +1195,16 @@ footer{
     fetch(BASE + '/releases/latest')
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.2.0');
+        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.3.0');
       })
       .catch(function(){
         fetch('https://img.shields.io/github/release/'+REPO+'.json')
           .then(function(r){ return r.json(); })
           .then(function(d){
             setText(['releaseVer','relTag'],
-              (d&&d.value&&d.value!=='none') ? d.value : 'v1.2.0');
+              (d&&d.value&&d.value!=='none') ? d.value : 'v1.3.0');
           }).catch(function(){
-            setText(['releaseVer','relTag'], 'v1.2.0');
+            setText(['releaseVer','relTag'], 'v1.3.0');
           });
       });
   }
