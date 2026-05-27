@@ -1,37 +1,56 @@
 #!/bin/bash
-echo ""
-echo " ✝  SermonCast — Whisper Setup"
-echo " --------------------------------"
-echo " Installs local speech recognition (offline, no API costs)"
+# AnchorCast — Whisper AI Setup for macOS/Linux
+# This script installs Python dependencies and downloads the Whisper model.
+
+set -e
+
+echo "========================================"
+echo "  AnchorCast — Whisper AI Setup (Mac)"
+echo "========================================"
 echo ""
 
-# Check Python
-if ! command -v python3 &>/dev/null; then
-    echo " ERROR: Python 3 not found."
-    echo " Install with: brew install python3  (macOS)"
-    echo "               sudo apt install python3 python3-pip  (Ubuntu)"
-    exit 1
+# Find Python 3
+PYTHON=""
+for bin in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+  if command -v "$bin" &>/dev/null; then
+    PYTHON="$bin"
+    break
+  fi
+done
+
+if [ -z "$PYTHON" ]; then
+  echo "ERROR: Python 3 not found."
+  echo ""
+  echo "Install it with Homebrew:  brew install python3"
+  echo "Or download from:          https://www.python.org/downloads/"
+  exit 1
 fi
 
-echo " Installing faster-whisper..."
-pip3 install faster-whisper --quiet
+echo "Using Python: $($PYTHON --version)"
+echo ""
 
-if [ $? -ne 0 ]; then
-    echo " ERROR: pip install failed."
-    echo " Try: pip3 install faster-whisper"
-    exit 1
-fi
+# Check Python version (need 3.8-3.12)
+$PYTHON -c "
+import sys
+v = sys.version_info
+if not (v.major == 3 and 8 <= v.minor <= 12):
+    print(f'ERROR: Python {v.major}.{v.minor} detected. AnchorCast needs Python 3.8–3.12.')
+    sys.exit(1)
+print(f'Python version OK: {v.major}.{v.minor}.{v.micro}')
+"
 
 echo ""
-echo " Downloading Whisper base model (~74 MB)..."
-python3 -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8'); print('Model ready!')"
-
-if [ $? -ne 0 ]; then
-    echo " ERROR: Model download failed."
-    exit 1
-fi
+echo "Installing faster-whisper..."
+$PYTHON -m pip install --upgrade faster-whisper
 
 echo ""
-echo " ✓ Whisper setup complete!"
-echo " Restart SermonCast — transcription works offline now."
+echo "faster-whisper installed successfully."
 echo ""
+
+# Write success flag for Electron to detect
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+touch "$SCRIPT_DIR/whisper_setup_complete.flag"
+
+echo "========================================"
+echo "  Setup complete! Restart AnchorCast."
+echo "========================================"

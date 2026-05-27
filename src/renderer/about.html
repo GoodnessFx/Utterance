@@ -96,7 +96,7 @@
     <!-- Version -->
     <div class="info-row">
       <span class="info-lbl">Version</span>
-      <span class="info-val" id="version">v1.2.0</span>
+      <span class="info-val" id="version">v1.VERSION</span>
     </div>
 
     <!-- Description -->
@@ -244,5 +244,23 @@
   }
 
   init();
+</script>
+<script>
+(function(){
+  var v = window.electronAPI && window.electronAPI.appVersion;
+  if (!v) return;
+  // Update all elements that contain the version placeholder
+  document.querySelectorAll('[id*="version"],[id*="Version"]').forEach(function(el) {
+    if (el.textContent.includes('v1.VERSION')) {
+      el.textContent = el.textContent.replace(/v1\.VERSION/g, 'v' + v);
+    }
+  });
+  // Also update any text nodes
+  document.querySelectorAll('*').forEach(function(el) {
+    if (el.children.length === 0 && el.textContent.includes('v1.VERSION')) {
+      el.textContent = el.textContent.replace(/v1\.VERSION/g, 'v' + v);
+    }
+  });
+})();
 </script>
 </body></html>

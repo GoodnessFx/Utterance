@@ -7,7 +7,7 @@
   <link rel="apple-touch-icon" href="../assets/favicon.svg"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Download — AnchorCast</title>
-<meta name="description" content="Download AnchorCast — free AI church presentation software for Windows and MACOS"/>
+<meta name="description" content="Download AnchorCast — free AI church presentation software for Windows"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
@@ -1071,7 +1071,6 @@ footer{
     </p>
     <div class="dl-meta">
       <div class="dl-meta-i"><span>✓</span> Windows 10 / 11</div>
-      <div class="dl-meta-i"><span>✓</span> MACOS Intel /Apple Silicon (M1/M2/M3)</div>
       <div class="dl-meta-i"><span>✓</span> No internet required</div>
       <div class="dl-meta-i"><span>✓</span> Local AI — fully private</div>
       <div class="dl-meta-i"><span>✓</span> Free &amp; open-source forever</div>
@@ -1459,7 +1458,7 @@ function switchChip(btn){
     /* Show known baselines immediately */
     animateCounter(['dlCount','statDl'], KNOWN_DOWNLOADS);
     animateCounter(['starCount','ghStars','starCountHero'], KNOWN_STARS);
-    setText(['releaseVer','relTag'], 'v1.2.0');
+    setText(['releaseVer','relTag'], 'v1.3.0');
 
     /* ── Downloads: GitHub API → Shields.io fallback ── */
     fetch(BASE + '/releases?per_page=100')
@@ -1512,16 +1511,16 @@ function switchChip(btn){
     fetch(BASE + '/releases/latest')
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.2.0');
+        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.3.0');
       })
       .catch(function(){
         fetch('https://img.shields.io/github/release/'+REPO+'.json')
           .then(function(r){ return r.json(); })
           .then(function(d){
             setText(['releaseVer','relTag'],
-              (d&&d.value&&d.value!=='none') ? d.value : 'v1.2.0');
+              (d&&d.value&&d.value!=='none') ? d.value : 'v1.3.0');
           }).catch(function(){
-            setText(['releaseVer','relTag'], 'v1.2.0');
+            setText(['releaseVer','relTag'], 'v1.3.0');
           });
       });
   }

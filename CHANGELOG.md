@@ -4,6 +4,86 @@ All notable changes to **AnchorCast** are documented here.
 
 ---
 
+## [1.3.0] — 2026-05 
+
+### Added
+
+**Auto-Update**
+- App checks for updates automatically every 6 hours and on startup (5-second delay)
+- Gold banner appears when a new version is available — shows download progress bar
+- Green banner when update is ready — "Restart & Install" button applies the update instantly
+- Update packages are small (~30 MB) — Python and Whisper model are never re-downloaded
+- Separate update channels per platform and architecture (Windows, Mac ARM64, Mac Intel)
+
+**macOS Support**
+- AnchorCast now runs natively on macOS — Apple Silicon (M1/M2/M3) and Intel
+- Bundled portable Python 3.12 for offline Whisper AI transcription on Mac
+- Whisper model bundled in Full builds; downloaded on first use in Light builds
+- Mac-specific PATH restoration — Electron no longer strips Homebrew and user paths
+- `after-pack.js` hook restores executable permissions on bundled Python binaries after build
+- Traffic light buttons (close/min/max) no longer overlap the AnchorCast title bar
+- Cmd+C / Cmd+V / Cmd+X / Cmd+A / Cmd+Z clipboard shortcuts now work in all text fields
+- Cmd+P freed for Paste — projection shortcut moved to Cmd+Shift+P
+
+**Remote Control — Sign Out**
+- Sign Out button added to the Remote Control UI header
+- Clicking Sign Out clears the session token server-side and locally, returns to PIN screen
+- `POST /api/signout` endpoint invalidates the session token and clears IP lockout
+
+**Build Variants**
+- **Full installer** (~600 MB Windows / ~500 MB Mac) — Python + Whisper model bundled, ready immediately
+- **Light installer** (~200 MB Windows / ~150 MB Mac) — Python bundled, model downloaded on first use
+- **Update package** (~30 MB) — app code only, silent auto-update for existing users
+- Separate build configs: `electron-builder-win-full.json`, `electron-builder-win-light.json`, `electron-builder-win-update.json`, and Mac equivalents
+
+**Dynamic Versioning**
+- Version number is now read from `package.json` in a single place
+- About, Settings, Bible Manager, Help, and Welcome pages all update automatically on release
+- No more manually updating version strings across multiple files
+
+### Fixed
+
+- **HDMI disconnect** — Projection window now parks off-screen silently when projector is unplugged; auto-restores fullscreen and content when reconnected (no user action needed)
+- **Win+D minimizing projection** — `minimizable: false` + minimize event intercept prevents Win+D and taskbar from minimizing the projection screen
+- **Canvas word-wrap** — Verse text no longer clips at the right edge of Program Preview and Live Display canvases
+- **Remote Control auth** — X-Remote-Role header no longer trusted as authentication; sessions properly invalidated on PIN change
+- **History window Copy button** — Fixed with 3-method fallback (Electron IPC → navigator.clipboard → execCommand)
+- **Remote Control Copy URL / Share buttons** — Same 3-method clipboard fix applied
+- **Projection timer z-index** — Timer now renders above song slides (z-index raised from 7 to 50)
+- **Media context menu** — Smart viewport positioning prevents menu from rendering off-screen; z-index raised to 9999
+- **Whisper not found on Mac** — Fixed Electron stripping PATH on launch, preventing detection of Homebrew Python
+- **Wrong userData path on Mac** — Fixed `anchorcast` vs `AnchorCast` case mismatch causing models not to be found
+- **Whisper server not killed on app close** — `stopWhisperServer()` now called on `before-quit`; orphaned processes cleaned up via `pkill` on Mac
+- **PayPal donation link** — Updated to correct URL across About, Registration Status, and donate modal
+
+### Improvements
+
+**Deepgram Transcription (Live)**
+- `utterance_end_ms` reduced from 1200ms to 600ms — final results appear faster
+- `no_delay: true` added — minimises Deepgram server-side buffering
+- Audio send buffer batches chunks to 100ms before sending — reduces WebSocket overhead
+- Audio worklet flush size increased from 2048 to 4096 samples — fewer, larger sends
+
+**Local Whisper Transcription**
+- Audio chunk size reduced from 4.5s to 3.5s — slightly faster transcription turnaround
+- Overlap reduced from 0.75s to 0.5s
+- Clicking "Start Transcript" before Whisper model has loaded now shows a loading state and auto-starts when ready, instead of showing a false "not installed" error
+- `whisperLocalReady` check removed from source toggle — Local can always be selected; Whisper starts on demand
+
+**AI Detection**
+- Navigation buffer suppresses verse :1 false positives when preacher announces a chapter
+- Dedup window upgraded to 5 minutes; 60-minute presented suppression (re-allows at ≥97% confidence)
+- Sentence loop collapse added to `normalizeTranscriptText` (Deepgram streaming glitch fix)
+- Chapter-range fix: "Genesis 5 and 6" no longer fires Genesis 5:6
+- Offline Whisper hallucination guard added
+- 30+ biblical word corrections from live sermons added to all 3 correction layers
+
+**Projection**
+- Guard interval pauses during GPU teardown on HDMI events — prevents white screen freeze
+- `mainWindow` guard in `window-all-closed` prevents premature app quit during display changes
+
+---
+
 ## [1.2.0] — 2026-04
 
 ### Added
@@ -61,7 +141,7 @@ All notable changes to **AnchorCast** are documented here.
 
 ### Fixed
 
-- Startup Whisper banner now correctly identifies what is actually missing — Python not installed, faster-whisper not installed, or only the model file missing — instead of always showing "Python and faster-whisper are installed, but the speech model file is missing" regardless of what was actually installed
+- Startup Whisper banner now correctly identifies what is actually missing — Python not installed, faster-whisper not installed, or only the model file missing
 - Projection timer restarting from zero after closing and reopening the projection window
 - Main-app timer incorrectly showing a failure toast when the timer started successfully but projection was not open
 - Flash Faster button not activating during the warning phase — was only working at 00:00
@@ -117,7 +197,9 @@ Full initial platform release including:
 - Local JSON-based persistence — no database required
 - Projection, timer, remote control, and detection systems share centralized state through the main process
 
-### Focus areas since v1.1.0
-- Timer reliability and projection synchronization
-- Installer — fully offline bundling of Python, Whisper, models, and VC++ runtime
-- Public website and GitHub documentation
+### Focus areas since v1.2.0
+- macOS native support (Apple Silicon + Intel)
+- Auto-update infrastructure with separate Full / Light / Update build variants
+- Deepgram and local Whisper latency improvements
+- Remote Control security hardening
+- Projection stability (HDMI disconnect, Win+D, canvas rendering)
