@@ -44,24 +44,30 @@ jobs:
           gh release download "$RELEASE_TAG" --pattern "$DMG_NAME" --clobber
           ls -lh
           test -f "$DMG_NAME" || (echo "DMG was not downloaded: $DMG_NAME" && exit 1)
+
       - name: List release assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
         run: |
           gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
-      - name: Store Apple notarization credentials
+
+      - name: Store and validate Apple notarization credentials
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         shell: bash
         run: |
+          echo "Saving Apple notarization credentials to temporary keychain profile..."
           xcrun notarytool store-credentials "AnchorCastNotaryCI" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --no-validate
+            --validate
+
+          echo "Credential validation passed."
 
       - name: Submit DMG for notarization
         env:
@@ -69,6 +75,7 @@ jobs:
         shell: bash
         run: |
           cd notarize-work
+          echo "Submitting $DMG_NAME for notarization..."
           xcrun notarytool submit "$DMG_NAME" \
             --keychain-profile "AnchorCastNotaryCI" \
             --wait \
