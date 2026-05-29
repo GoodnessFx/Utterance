@@ -44,7 +44,12 @@ jobs:
           gh release download "$RELEASE_TAG" --pattern "$DMG_NAME" --clobber
           ls -lh
           test -f "$DMG_NAME" || (echo "DMG was not downloaded: $DMG_NAME" && exit 1)
-
+      - name: List release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
       - name: Store Apple notarization credentials
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
