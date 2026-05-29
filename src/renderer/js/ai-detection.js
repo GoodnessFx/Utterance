@@ -688,9 +688,9 @@ Return [] if nothing detected. No markdown, no extra text.`;
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        max_tokens: 4096,
         messages: [{ role: 'user', content:
-          `Generate structured sermon notes from this transcript.\n${title ? `Title: ${title}\n` : ''}\nTRANSCRIPT:\n${transcript}\n\nReturn JSON: { title, topic, summary, mainPoints:[{heading,content,scriptures}], keyVerses:[{ref,text}], practicalApplications:[string], closingThought }\n\nJSON only, no markdown.`
+          `Generate structured sermon notes from this transcript. Capture ALL main points covered — do not limit or truncate the number of points.\n${title ? `Title: ${title}\n` : ''}\nTRANSCRIPT:\n${transcript}\n\nReturn JSON: { title, topic, summary, mainPoints:[{heading,content,scriptures}], keyVerses:[{ref,text}], practicalApplications:[string], closingThought }\n\nInclude every distinct point from the sermon. JSON only, no markdown.`
         }],
       }),
     });
