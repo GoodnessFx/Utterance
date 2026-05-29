@@ -1,0 +1,172 @@
+name: Auto Notarize macOS Release DMG
+
+on:
+  release:
+    types:
+      - published
+      - edited
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag, example: v1.4.0"
+        required: true
+        default: "v1.4.0"
+      dmg_name:
+        description: "Exact DMG asset name to notarize"
+        required: true
+        default: "AnchorCastUpdate_v1.4.0_arm64.dmg"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: notarize-macos-${{ github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  discover-dmgs:
+    name: Discover release DMG assets
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      dmgs: ${{ steps.resolve.outputs.dmgs }}
+
+    steps:
+      - name: Resolve release tag and DMG assets
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG_FROM_EVENT: ${{ github.event.release.tag_name }}
+          RELEASE_TAG_FROM_INPUT: ${{ inputs.release_tag }}
+          DMG_NAME_FROM_INPUT: ${{ inputs.dmg_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$RELEASE_TAG_FROM_INPUT"
+            DMGS_JSON="[\"$DMG_NAME_FROM_INPUT\"]"
+          else
+            RELEASE_TAG="$RELEASE_TAG_FROM_EVENT"
+            echo "Release event for tag: $RELEASE_TAG"
+
+            DMGS_JSON=$(gh release view "$RELEASE_TAG" \
+              --json assets \
+              --jq '[.assets[].name | select(endswith(".dmg")) | select(contains("_notarized") | not)]')
+
+            if [ "$DMGS_JSON" = "[]" ]; then
+              echo "No DMG assets found on release $RELEASE_TAG"
+              echo "Tip: If the release was published before uploading assets, rerun manually with workflow_dispatch."
+            fi
+          fi
+
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "dmgs=$DMGS_JSON" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved DMG assets:"
+          echo "$DMGS_JSON"
+
+  notarize-dmgs:
+    name: Notarize and replace DMG
+    needs: discover-dmgs
+    if: ${{ needs.discover-dmgs.outputs.dmgs != '[]' }}
+    runs-on: macos-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        dmg_name: ${{ fromJson(needs.discover-dmgs.outputs.dmgs) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check required secrets
+        shell: bash
+        run: |
+          test -n "${{ secrets.APPLE_ID }}" || (echo "Missing APPLE_ID secret" && exit 1)
+          test -n "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" || (echo "Missing APPLE_APP_SPECIFIC_PASSWORD secret" && exit 1)
+          test -n "${{ secrets.APPLE_TEAM_ID }}" || (echo "Missing APPLE_TEAM_ID secret" && exit 1)
+
+      - name: Download DMG from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.discover-dmgs.outputs.release_tag }}
+          DMG_NAME: ${{ matrix.dmg_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p notarize-work
+          cd notarize-work
+          echo "Downloading $DMG_NAME from release $RELEASE_TAG"
+          gh release download "$RELEASE_TAG" --pattern "$DMG_NAME" --clobber
+          ls -lh
+          test -f "$DMG_NAME" || (echo "DMG was not downloaded: $DMG_NAME" && exit 1)
+
+      - name: Validate Apple notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials "AnchorCastNotaryCI" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --validate
+
+      - name: Submit DMG for notarization
+        env:
+          DMG_NAME: ${{ matrix.dmg_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd notarize-work
+          echo "Submitting $DMG_NAME for notarization..."
+          xcrun notarytool submit "$DMG_NAME" \
+            --keychain-profile "AnchorCastNotaryCI" \
+            --wait \
+            --timeout 60m
+
+      - name: Staple notarization ticket to DMG
+        env:
+          DMG_NAME: ${{ matrix.dmg_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd notarize-work
+          xcrun stapler staple "$DMG_NAME"
+          xcrun stapler validate "$DMG_NAME"
+
+      - name: Verify notarized DMG with Gatekeeper
+        env:
+          DMG_NAME: ${{ matrix.dmg_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd notarize-work
+          spctl -a -vvv --type install "$DMG_NAME"
+
+      - name: Replace release asset with same filename
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.discover-dmgs.outputs.release_tag }}
+          DMG_NAME: ${{ matrix.dmg_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd notarize-work
+          gh release upload "$RELEASE_TAG" "$DMG_NAME" --clobber
+
+      - name: Summary
+        env:
+          RELEASE_TAG: ${{ needs.discover-dmgs.outputs.release_tag }}
+          DMG_NAME: ${{ matrix.dmg_name }}
+        shell: bash
+        run: |
+          echo "✅ Notarized, stapled, verified, and replaced release asset."
+          echo "Release: $RELEASE_TAG"
+          echo "DMG: $DMG_NAME"
