@@ -39,20 +39,28 @@
       Goto models_section
 
     vc_try_download:
-      ; Bundled file not found — try downloading as fallback
+      ; [NSH-1] Use GetTempFileName for a unique, ACL-protected temp path
+      ; (prevents TOCTOU race on predictable $TEMP\dl_vc.ps1)
+      GetTempFileName $R0
       DetailPrint "Bundled vc_redist not found — downloading from Microsoft..."
-      FileOpen $1 "$TEMP\dl_vc.ps1" w
-      FileWrite $1 'Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "$env:TEMP\vc_redist_ac.exe" -UseBasicParsing'
+      FileOpen $1 "$R0" w
+      FileWrite $1 '$vcDest = [System.IO.Path]::GetTempFileName() + ".exe"$\n'
+      FileWrite $1 'Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $vcDest -UseBasicParsing$\n'
+      ; [NSH-2] Verify SHA256 hash before executing downloaded binary
+      FileWrite $1 '$expected = "9B9DD72C27AB1DB081DE56BB7B73B07B0001E7CDCB5BE2B060FC21B3E3B9CF50"$\n'
+      FileWrite $1 '$actual = (Get-FileHash -Path $vcDest -Algorithm SHA256).Hash$\n'
+      FileWrite $1 'if ($actual -ne $expected) { Remove-Item $vcDest -Force; exit 2 }$\n'
+      FileWrite $1 'Start-Process -FilePath $vcDest -ArgumentList "/install","/quiet","/norestart" -Wait$\n'
+      FileWrite $1 'Remove-Item $vcDest -Force$\n'
       FileClose $1
-      ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$TEMP\dl_vc.ps1"' $0
-      Delete "$TEMP\dl_vc.ps1"
-      IfFileExists "$TEMP\vc_redist_ac.exe" vc_install_downloaded
-        DetailPrint "VC++ not available (no internet). AI transcription may not work."
+      ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$R0"' $0
+      Delete "$R0"
+      IntCmp $0 0 vc_dl_ok vc_dl_fail vc_dl_fail
+      vc_dl_ok:
+        DetailPrint "Visual C++ installed from download."
         Goto models_section
-      vc_install_downloaded:
-        ExecWait '"$TEMP\vc_redist_ac.exe" /install /quiet /norestart' $0
-        Delete "$TEMP\vc_redist_ac.exe"
-        DetailPrint "Visual C++ installed from download (code $0)."
+      vc_dl_fail:
+        DetailPrint "VC++ not available (no internet or hash mismatch). AI transcription may not work."
         Goto models_section
 
   vc_found:
@@ -92,7 +100,11 @@ Click No to download automatically on first use." \
       Goto verify_engine
 
     do_model_download:
-    FileOpen $1 "$TEMP\ac_get_model.py" w
+    ; [NSH-3] Use GetTempFileName for unique ACL-protected paths
+    ; (prevents TOCTOU race on predictable $TEMP\ac_get_model.py / ac_run_model.ps1)
+    GetTempFileName $R1
+    GetTempFileName $R2
+    FileOpen $1 "$R1" w
     FileWrite $1 "import os, warnings, logging$\n"
     FileWrite $1 "os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'$\n"
     FileWrite $1 "os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'$\n"
@@ -105,16 +117,14 @@ Click No to download automatically on first use." \
     FileWrite $1 "os.makedirs(d, exist_ok=True)$\n"
     FileWrite $1 "WhisperModel('small.en', device='cpu', compute_type='int8', download_root=d)$\n"
     FileClose $1
-    ; Run python completely hidden using PowerShell -WindowStyle Hidden
-    ; NSIS expands $INSTDIR and $TEMP before writing to the ps1 file
-    FileOpen $2 "$TEMP\ac_run_model.ps1" w
+    FileOpen $2 "$R2" w
     FileWrite $2 "Start-Process -FilePath '$INSTDIR\resources\python\python.exe' "
-    FileWrite $2 "-ArgumentList '-W','ignore','$TEMP\ac_get_model.py' "
+    FileWrite $2 "-ArgumentList '-W','ignore','$R1' "
     FileWrite $2 "-WindowStyle Hidden -Wait$\n"
     FileClose $2
-    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$TEMP\ac_run_model.ps1"' $0
-    Delete "$TEMP\ac_get_model.py"
-    Delete "$TEMP\ac_run_model.ps1"
+    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$R2"' $0
+    Delete "$R1"
+    Delete "$R2"
     IntCmp $0 0 model_dl_ok model_dl_fail model_dl_fail
     model_dl_ok:
       DetailPrint "Whisper model downloaded."

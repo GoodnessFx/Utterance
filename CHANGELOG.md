@@ -4,7 +4,7 @@ All notable changes to **AnchorCast** are documented here.
 
 ---
 
-## [1.4.0] — 2026-05 *(Security & Bug Fix Release)*
+## [1.4.0] — 2026-05
 
 ### Security
 
@@ -37,8 +37,8 @@ This release is a focused security hardening update covering all source layers. 
 
 - **Remote session token in `localStorage`** — The remote control session token was persisted in `localStorage`, meaning it survived browser restarts and persisted on shared tablets. Moved to `sessionStorage` so the token is cleared when the tab is closed
 - **Electron version upgraded** — Pinned from `^31.0.0` (EOL) to `^33.0.0`. Electron 31 has reached end-of-life with known Chromium CVEs; 33 is the current stable release
-- **`asar` packaging enforced** — All six electron-builder configs now explicitly set `"asar": true`, ensuring the app bundle is always packed as a protected asar archive. (`asarIntegrity` is available in electron-builder 25+ — upgrade the build toolchain to enable runtime hash validation)
-- **`package-lock.json` version synced** — The lockfile was stale at `1.2.3` while `package.json` was at `1.3.0`; synced to `1.3.0`. `npm run audit` and `npm run audit:fix` scripts added
+- **`asar` packaging enforced** — All electron-builder configs now explicitly set `"asar": true`, ensuring the app bundle is always packed as a protected asar archive
+- **`package-lock.json` version synced** — The lockfile was stale; synced to `1.4.0`. `npm run audit` and `npm run audit:fix` scripts added
 
 **HTML renderer fixes (XSS)**
 
@@ -46,7 +46,7 @@ This release is a focused security hardening update covering all source layers. 
 - `about.html` — Registration name, email, and church name from `registration.json` rendered unescaped. Escaped with `escH()`
 - `settings.html` / `bible-manager.html` — `e.message` from caught exceptions and `abbrev` (user-supplied translation abbreviation) injected into status banners. Both escaped
 - `presentation-editor.html` — Bible search result `r.ref` and `r.text` rendered directly into `innerHTML`. Escaped
-- `projection.html` / `projection.old.html` — `sanitizeProjectionSongHtml()` stripped unknown tags and double-quoted `on*=` handlers but missed: unquoted `onX=value`, backtick-quoted handlers, and `style=` with `url(javascript:...)`. Sanitizer hardened to also strip `style=`, `href=`, `src=`, `xlink:href=`, `action=`, `formaction=`, and all three quoting styles
+- `projection.html` — `sanitizeProjectionSongHtml()` missed unquoted `onX=value`, backtick-quoted handlers, and `style=url(javascript:...)`. Sanitizer hardened to cover all three quoting styles plus `style=`, `href=`, `src=`, `xlink:href=`, `action=`, and `formaction=`
 
 **Installer (NSIS) fixes**
 
@@ -66,10 +66,12 @@ This release is a focused security hardening update covering all source layers. 
 
 **Auto-Update**
 - App checks for updates automatically every 6 hours and on startup (5-second delay)
-- Gold banner appears when a new version is available — shows download progress bar
-- Green banner when update is ready — "Restart & Install" button applies the update instantly
-- Update packages are small (~30 MB) — Python and Whisper model are never re-downloaded
+- Gold banner appears when a new version is available — user clicks Download to begin
+- Green banner when update is ready — "Restart & Install" button applies the update
+- Update packages are small (~30–80 MB) — Whisper model never re-downloaded on update
 - Separate update channels per platform and architecture (Windows, Mac ARM64, Mac Intel)
+- Windows: downloads and installs via `electron-updater` with user consent (no auto-install)
+- macOS: checks GitHub releases and shows banner with direct `.dmg` download link
 
 **macOS Support**
 - AnchorCast now runs natively on macOS — Apple Silicon (M1/M2/M3) and Intel
@@ -89,13 +91,18 @@ This release is a focused security hardening update covering all source layers. 
 **Build Variants**
 - **Full installer** (~600 MB Windows / ~500 MB Mac) — Python + Whisper model bundled, ready immediately
 - **Light installer** (~200 MB Windows / ~150 MB Mac) — Python bundled, model downloaded on first use
-- **Update package** (~30 MB) — app code only, silent auto-update for existing users
+- **Update package** (~30–80 MB) — app code + Python, no model — silent auto-update for existing users
 - Separate build configs: `electron-builder-win-full.json`, `electron-builder-win-light.json`, `electron-builder-win-update.json`, and Mac equivalents
 
 **Dynamic Versioning**
 - Version number is now read from `package.json` in a single place
 - About, Settings, Bible Manager, Help, and Welcome pages all update automatically on release
 - No more manually updating version strings across multiple files
+
+**Developer Experience**
+- DevTools accessible in production via F12 / Ctrl+Shift+I / Cmd+Option+I
+- View menu always shows Developer Tools and Reload options
+- CSP headers added to Electron renderer server (allows `wss://api.deepgram.com`)
 
 ### Fixed
 
@@ -111,12 +118,13 @@ This release is a focused security hardening update covering all source layers. 
 - **Wrong userData path on Mac** — Fixed `anchorcast` vs `AnchorCast` case mismatch causing models not to be found
 - **Whisper server not killed on app close** — `stopWhisperServer()` now called on `before-quit`; orphaned processes cleaned up via `pkill` on Mac
 - **PayPal donation link** — Updated to correct URL across About, Registration Status, and donate modal
+- **Deepgram `no_delay` parameter** — Removed invalid parameter that caused HTTP 400 connection failures
+- **Deepgram key name mismatch** — Normalized `deepgramApiKey` (server.js) to `deepgramKey` (app.js) in `applySettings()`
 
 ### Improvements
 
 **Deepgram Transcription (Live)**
 - `utterance_end_ms` reduced from 1200ms to 600ms — final results appear faster
-- `no_delay: true` added — minimises Deepgram server-side buffering
 - Audio send buffer batches chunks to 100ms before sending — reduces WebSocket overhead
 - Audio worklet flush size increased from 2048 to 4096 samples — fewer, larger sends
 
@@ -125,6 +133,7 @@ This release is a focused security hardening update covering all source layers. 
 - Overlap reduced from 0.75s to 0.5s
 - Clicking "Start Transcript" before Whisper model has loaded now shows a loading state and auto-starts when ready, instead of showing a false "not installed" error
 - `whisperLocalReady` check removed from source toggle — Local can always be selected; Whisper starts on demand
+- Whisper setup banner delayed 6 seconds with cancellation — suppresses false "not installed" flash during post-update restart
 
 **AI Detection**
 - Navigation buffer suppresses verse :1 false positives when preacher announces a chapter
