@@ -291,6 +291,13 @@ function applySettings(s) {
   if (s.presTheme) State.currentPresTheme = s.presTheme;
   // Store scripture ref position (used by syncProjection)
   State.settings = { ...State.settings, ...s };
+  // Normalize API key field names — server.js uses deepgramApiKey, app.js uses deepgramKey
+  if (State.settings.deepgramApiKey && !State.settings.deepgramKey) {
+    State.settings.deepgramKey = State.settings.deepgramApiKey;
+  }
+  if (State.settings.claudeApiKey && !State.settings.apiKey) {
+    State.settings.apiKey = State.settings.claudeApiKey;
+  }
   State.programOverlayTextOnMedia = !!State.settings.overlayTextOnMedia;
   updateOverlayTextOnMediaUI();
   // Only update online/whisper if applySettings is called at init time
@@ -982,27 +989,18 @@ function _showWhisperSetupBanner(data) {
   if (reason === 'no_python') {
     icon     = '🎙️';
     title    = 'Local Whisper not installed';
-    const isMacOS = navigator.platform?.toLowerCase().includes('mac') || navigator.userAgent?.toLowerCase().includes('mac');
-    detail   = isMacOS
-      ? 'Python was not found. Click Set Up Now — it will install faster-whisper using your system Python automatically. Make sure Python 3 is installed (python.org or Homebrew).'
-      : 'Python and the Whisper AI engine are not installed. Click Set Up Now for a one-time setup — installs portable Python 3.12 + Whisper automatically (~200 MB). No system changes are made.';
+    detail   = 'Python and the Whisper AI engine are not installed. Click Set Up Now for a one-time setup — installs portable Python 3.12 + Whisper automatically (~200 MB). No system changes are made.';
     btnLabel = 'Set Up Now';
   } else if (reason === 'no_faster_whisper') {
     icon     = '⚠️';
     title    = 'Whisper engine missing';
-    const isMacOS2 = navigator.platform?.toLowerCase().includes('mac') || navigator.userAgent?.toLowerCase().includes('mac');
-    detail   = isMacOS2
-      ? 'Python is installed but the faster-whisper package is missing. Click Set Up Now to install it automatically via pip.'
-      : 'Python is installed but the faster-whisper package is missing. Click Set Up Now to complete the installation.';
+    detail   = 'Python is installed but the faster-whisper package is missing. Click Set Up Now to complete the installation.';
     btnLabel = 'Set Up Now';
   } else if (reason.startsWith('wrong_version:')) {
     const ver = reason.split(':')[1] || 'unknown';
-    const isMacOS3 = navigator.platform?.toLowerCase().includes('mac') || navigator.userAgent?.toLowerCase().includes('mac');
     icon     = '⚠️';
-    title    = `Python ${ver} is not compatible`;
-    detail   = isMacOS3
-      ? `faster-whisper requires Python 3.10 or newer. Your system has Python ${ver}. Install Python 3.12 via Homebrew: brew install python@3.12`
-      : `Local Transcription requires Python 3.10 or newer. Your system has Python ${ver}. Click Set Up Now to install portable Python 3.12 automatically.`;
+    title    = `Python ${ver} is not supported`;
+    detail   = `Local Transcription requires Python 3.8 or newer. Your system has Python ${ver}. Click Set Up Now to install portable Python 3.12 automatically.`;
     btnLabel = 'Set Up Now';
   } else if (reason === 'model_not_found') {
     icon     = '📥';
@@ -1282,22 +1280,24 @@ function setupElectronEvents() {
   });
 
   // Whisper local server status
+  let _whisperSetupTimer = null;
   window.electronAPI.on('whisper-status', (status) => {
     State.whisperLocalReady = !!status?.ready;
+    if (State.whisperLocalReady && _whisperSetupTimer) {
+      clearTimeout(_whisperSetupTimer);
+      _whisperSetupTimer = null;
+    }
     updateSrcToggleUI();
   });
 
   // Detailed whisper setup notification — fires when main process cannot find
-  // a working Python + faster-whisper installation.
-  // Delay slightly to avoid flashing banner during post-update restart timing.
+  // a working Python + faster-whisper installation
   window.electronAPI.on('whisper-setup-needed', (data) => {
-    // Small delay — prevents false banner during app restart after auto-update
-    setTimeout(() => {
-      // Only show if Whisper still isn't ready
-      if (!State.whisperLocalReady) {
-        _showWhisperSetupBanner(data);
-      }
-    }, 3000);
+    if (_whisperSetupTimer) clearTimeout(_whisperSetupTimer);
+    _whisperSetupTimer = setTimeout(() => {
+      _whisperSetupTimer = null;
+      if (!State.whisperLocalReady) _showWhisperSetupBanner(data);
+    }, 6000);
   });
 
   // Result from setup_whisper.bat — fires when main process detects flag file
@@ -1851,55 +1851,23 @@ async function openRemotePopover() {
     }
   });
 
-  // ── Copy URL — 3-method fallback (same as History copy) ──
-  async function copyTextToClipboard(text) {
-    // Method 1: Electron IPC (most reliable)
-    if (window.electronAPI?.copyToClipboard) {
-      try { await window.electronAPI.copyToClipboard(text); return true; } catch(e) {}
-    }
-    // Method 2: navigator.clipboard
-    if (navigator.clipboard?.writeText) {
-      try { await navigator.clipboard.writeText(text); return true; } catch(e) {}
-    }
-    // Method 3: execCommand fallback
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      if (ok) return true;
-    } catch(e) {}
-    return false;
-  }
-
-  pop.querySelector('#remoteCopyBtn')?.addEventListener('click', async () => {
+  // Copy URL
+  pop.querySelector('#remoteCopyBtn')?.addEventListener('click', () => {
     const currentUrl = pop.querySelector('#remoteUrlText')?.textContent || url;
-    if (!currentUrl || currentUrl === '—') { toast('⚠ No URL to copy'); return; }
-    const ok = await copyTextToClipboard(currentUrl);
-    if (ok) {
-      const btn = pop.querySelector('#remoteCopyBtn');
-      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
-      toast('📋 URL copied!');
-    } else {
-      toast('⚠ Could not copy — select the URL manually');
+    if (currentUrl && currentUrl !== '—') {
+      _copyToClipboardAnyContext(currentUrl, '📋 URL copied!');
     }
   });
 
-  pop.querySelector('#remoteShareBtn')?.addEventListener('click', async () => {
+  // Copy shareable message
+  pop.querySelector('#remoteShareBtn')?.addEventListener('click', () => {
     const currentUrl = pop.querySelector('#remoteUrlText')?.textContent || url;
-    if (!currentUrl || currentUrl === '—') { toast('⚠ Remote is not active'); return; }
-    const msg = `📱 AnchorCast Remote Control\n\nOpen this link on your phone or tablet to control the worship presentation:\n\n${currentUrl}\n\n(Make sure you\'re connected to the same WiFi network)`;
-    const ok = await copyTextToClipboard(msg);
-    if (ok) {
+    if (!currentUrl || currentUrl === '—') return;
+    const msg = `📱 AnchorCast Remote Control\n\nOpen this link on your phone or tablet to control the worship presentation:\n\n${currentUrl}\n\n(Make sure you're connected to the same WiFi network)`;
+    _copyToClipboardAnyContext(msg, '📋 Shareable message copied!', () => {
       const btn = pop.querySelector('#remoteShareBtn');
-      if (btn) { btn.textContent = '✓ Copied! Paste in WhatsApp or SMS'; setTimeout(() => { btn.innerHTML = '📋 Copy Link to Share via WhatsApp / SMS'; }, 2500); }
-      toast('📋 Shareable message copied!');
-    } else {
-      toast('⚠ Could not copy to clipboard');
-    }
+      if (btn) { btn.textContent = '✓ Copied! Paste in WhatsApp or SMS'; setTimeout(() => { btn.innerHTML = '📋 Copy Link to Share via WhatsApp / SMS'; }, 2000); }
+    });
   });
 
   // Open settings
@@ -1959,41 +1927,8 @@ function startRecording() {
   };
   if (!hasSrc[State.whisperSource]) {
     if (State.whisperSource === 'local') {
-      // Check if Whisper server is still loading (process started but model not ready yet)
-      window.electronAPI?.whisperStatus?.().then(status => {
-        if (status && !status.ready) {
-          // Server is starting up — show loading state and wait
-          const btn = document.getElementById('recordBtn');
-          const origText = btn.textContent;
-          btn.textContent = '⏳ Whisper loading…';
-          btn.disabled = true;
-          toast('💻 Local Whisper is loading — please wait a moment…');
-          // Poll until ready (max 60s)
-          let tries = 0;
-          const poll = setInterval(async () => {
-            tries++;
-            const s = await window.electronAPI?.whisperStatus?.();
-            if (s?.ready) {
-              clearInterval(poll);
-              State.whisperLocalReady = true;
-              btn.textContent = origText;
-              btn.disabled = false;
-              toast('💻 Whisper ready — starting transcript');
-              startRecording();
-            } else if (tries > 30) {
-              clearInterval(poll);
-              btn.textContent = origText;
-              btn.disabled = false;
-              _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
-            }
-          }, 2000);
-        } else {
-          // Genuinely not set up
-          _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
-        }
-      }).catch(() => {
-        _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
-      });
+      // Show the detailed setup banner with a "Set Up Now" button
+      _showWhisperSetupBanner({ reason: 'no_python', setupBatExists: true });
     } else if (State.whisperSource === 'deepgram') {
       toast('⚠️ No Deepgram API key — add one in Settings → Audio, or set up Local Whisper.');
     } else {
@@ -2500,67 +2435,6 @@ const _BIBLICAL_FIXES = [
   [/\bfor God's love the world\b/gi, 'for God so loved the world'],
   [/\blamb of got\b/gi,              'Lamb of God'],
   [/\blamb of guard\b/gi,            'Lamb of God'],
-
-  // ── Corrections from live Deepgram sermon (Apr 26, 2026) ─────────────
-  // Biblical names
-  [/\bzaki?[ue]us\b/gi,              'Zacchaeus'],
-  [/\bzache?us\b/gi,                 'Zacchaeus'],
-  [/\bbesali\b/gi,                   'Bezalel'],
-  [/\bdesall?y\b/gi,                 'Bezalel'],
-  [/\bbesaly\b/gi,                   'Bezalel'],
-  [/\bpostmortem\b/gi,               'Paul'],
-  [/\bpolymer\b/gi,                  'Paul'],
-
-  // "Grace" misheard as other words
-  [/\bdecrease of (god|law|christ)\b/gi, 'grace of $1'],
-  [/\bincrease of gold\b/gi,         'grace of God'],
-  [/\bgrade of god\b/gi,             'grace of God'],
-  [/\bgraze of god\b/gi,             'grace of God'],
-  [/\braised? of god\b/gi,           'grace of God'],
-
-  // "God" misheard in fast speech
-  [/\bgrace of job\b/gi,             'grace of God'],
-  [/\bgrace of gold\b/gi,            'grace of God'],
-  [/\b(word|kingdom|people|children|man|woman) of go\b/gi, '$1 of God'],
-
-  // Profanity that is actually a Biblical phrase
-  [/\bnoah fuck grace\b/gi,          'Noah found grace'],
-  [/\bfuck grace\b/gi,               'found grace'],
-  [/\bwhat pussy\b/gi,               'what passage'],
-
-  // Book name mishears
-  [/\bin fifteenth chapter\b/gi,     'Ephesians chapter'],
-  [/\bfifteenth chapter (\w+)\b/gi, 'Ephesians chapter $1'],
-  [/\bamos two was talking about\b/gi, '1 Peter was talking about'],
-
-  // Misc sermon speech patterns
-  [/\bthe antiseper\b/gi,            'the answer is'],
-  [/\bchris open\b/gi,               'Christ upon'],
-  [/\bpostmortem was talking\b/gi,   'Paul was talking'],
-  [/\bgod is good at all time(?!s)\b/gi, 'God is good at all times'],
-  [/\bthe grace of job\b/gi,         'the grace of God'],
-
-  // ── Corrections from live Deepgram Sermon 2 (Apr 19, 2026) ──────────
-  [/\bsad vision\b/gi,               'salvation'],
-  [/\bfor sad vision\b/gi,           'for salvation'],
-  [/\baffixure\b/gi,                 'apostle'],
-  [/\bby ?secuting\b/gi,             'persecuting'],
-  [/\bcycling ship\b/gi,             'keeping sheep'],
-  [/\bkick ?ship\b/gi,               'kingship'],
-  [/\bmessi says\b/gi,               'mercy says'],
-  [/\bmessy says\b/gi,               'mercy says'],
-  [/\bunsel?fly\b/gi,                'unselfishly'],
-  [/\bunmerited female\b/gi,         'unmerited favor'],
-  [/\bscriptatory\b/gi,              'scriptures'],
-  [/\bchrist located\b/gi,           'Christ located'],
-  [/\bgrass of god\b/gi,             'grace of God'],
-  [/\bgrace for sad\b/gi,            'grace for salvation'],
-  // "salvation" commonly misheard
-  [/\bsalvation vision\b/gi,         'salvation'],
-  [/\bsad addition\b/gi,             'salvation'],
-  // "apostle" misheard
-  [/\ban affixure\b/gi,              'an apostle'],
-  [/\bnot worthy to be called an affixure\b/gi, 'not worthy to be called an apostle'],
   [/\bholy goes\b/gi,                'Holy Ghost'],
   [/\bholy coast\b/gi,               'Holy Ghost'],
   [/\bholy goats\b/gi,               'Holy Ghost'],
@@ -2594,102 +2468,6 @@ const _BIBLICAL_FIXES = [
   [/\becclesiasties\b/gi,           'Ecclesiastes'],
   [/\becclesiast\b/gi,              'Ecclesiastes'],
   [/\becclesiat\b/gi,               'Ecclesiastes'],
-
-  // ── Sermon 3 corrections (Apr 12, 2026) ─ FOCUS sermon ──────────────────
-  // CRITICAL: 'focus' misheard as profanity in African English accent
-  [/\bfuck us\b/gi,                         'focus'],
-  [/\bif you.?re watching,? fuck us\b/gi,   'if you are watching, focus'],
-  [/\bfuck us on\b/gi,                      'focus on'],
-  // 1 Kings misheard as 'first kick'
-  [/\bfirst kick from the (\d+)/gi,         '1 Kings chapter $1'],
-  [/\bfirst kick from the\b/gi,             '1 Kings'],
-  [/\bfourth kings?\b/gi,                   '1 Kings'],
-  [/\bfirst kick (\d+)/gi,                  '1 Kings $1'],
-  [/\bfirst take (\d+)\b/gi,               '1 Kings $1'],
-  // Ephesians variant
-  [/\bephysians?\b/gi,                      'Ephesians'],
-  // Names
-  [/\bzolom\b/gi,                           'Solomon'],
-  // Mishears
-  [/\bfraud stealing in god\b/gi,           'trusting in God'],
-  [/\bfraud stealing\b/gi,                  'trusting'],
-  [/\bwhy your son was pissed\b/gi,         'why your son was busy'],
-  [/\bjack of poultry\b/gi,                 'jack of all trades'],
-  [/\bmaster of no\b/gi,                    'master of none'],
-
-
-  // ── Sermon 6 corrections (Apr 26, 2026) ─ Blessing of Work (Deepgram) ──
-  // 'Lord' misheard
-  [/\blocust placed man\b/gi,              'Lord placed man'],
-  [/\bplaced man in the daddy\b/gi,        'placed man in the garden'],
-  // Verse text corrections (affect detection matching)
-  [/\bhard water has plenty\b/gi,          'hard worker has plenty'],
-  [/\bhard water get rich\b/gi,            'hard worker gets rich'],
-  [/\bdelacing and become a slave\b/gi,    'be lazy and become a slave'],
-  [/\bmay not live to poverty\b/gi,        'mere talk leads to poverty'],
-  [/\blazy people work much\b/gi,          'lazy people want much'],
-  // Section headers
-  [/\bpestilence\.?\s+focus on\b/gi,    'perseverance. Focus on'],
-  [/\bfoursight\b/gi,                      'foresight'],
-  // Embarrassing mishears
-  [/\btitty\b/gi,                          'duty'],
-  [/\byou have a titty\b/gi,               'you have a duty'],
-  [/\bboiling the midnight oil\b/gi,       'burning the midnight oil'],
-  [/\bwalk in the day study\b/gi,          'work in the day study'],
-  // Biblical references
-  [/\bcopier will speak to the king\b/gi,  'cupbearer will speak to the king'],
-  [/\bthe copier\b/gi,                     'the cupbearer'],
-  [/\ba bandage scour seating\b/gi,        'like a bandit'],
-
-  // ── Sermon 5 corrections (Apr 26, 2026) ─ Blessing of Work ─────────────
-  // Book name mishears
-  [/\bprocter\b/gi,                          'Proverbs'],
-  [/\bproctor\b/gi,                          'Proverbs'],
-  // 'lamps' in ten virgins parable (Matthew 25) misheard as 'lungs'
-  [/\btheir lungs\b/gi,                      'their lamps'],
-  [/\bour lungs\b/gi,                        'our lamps'],
-  [/\bthe lungs\b/gi,                        'the lamps'],
-  [/\blungs are going\b/gi,                  'lamps are going out'],
-  // CRITICAL: 'foresight' misheard as profanity/wrong words
-  [/\bhaving suicide\b/gi,                   'having foresight'],
-  [/\bfour sides\b/gi,                       'foresight'],
-  [/\bsuicide is the ability\b/gi,           'foresight is the ability'],
-  // 'ants' misheard as 'aunts'
-  [/\blearning from the aunts\b/gi,          'learning from the ants'],
-  [/\bthe aunts today\b/gi,                  'the ants today'],
-  [/\bthe aunt this morning\b/gi,            'the ant this morning'],
-  [/\bfrom the aunts\b/gi,                   'from the ants'],
-  // 'amen is weak' misheard as 'atonement is weak'
-  [/\batonement is very weak\b/gi,           'your amen is very weak'],
-  [/\batonement is weak\b/gi,                'amen is weak'],
-  // 'diligence' misheard as 'delicious'
-  [/\bit'?s delicious!\b/gi,                 'diligence!'],
-  [/\bdelicious!\s*constant\b/gi,           'diligence! constant'],
-  // Financial provision misheard as theological propitiation
-  [/\bpropitiation for yourself\b/gi,        'provision for yourself'],
-  [/\bpropitiation for others\b/gi,          'provision for others'],
-
-  // ── Sermon 4 corrections (Apr 15, 2026) ─ NEW LIFE IN CHRIST ────────────
-  [/\bgalicia'?s chapter\b/gi,           'Galatians chapter'],
-  [/\bgalicias\b/gi,                     'Galatians'],
-  [/\bcollisions chapter\b/gi,           'Colossians chapter'],
-  [/\bcollisions\b/gi,                   'Colossians'],
-  [/\bconverseius chapter\b/gi,          'Colossians chapter'],
-  [/\bfishes number (\d+)/gi,            'Ephesians chapter $1'],
-  [/\bfishes number\b/gi,               'Ephesians'],
-  [/\bnew pipe a robot slab\b/gi,        'now Romans'],
-  [/\bjoint ears\b/gi,                   'joint heirs'],
-  [/\bears of god\b/gi,                  'heirs of God'],
-  [/\bwe are afraid of god\b/gi,         'we are heirs of God'],
-  [/\bwe are ears\b/gi,                  'we are heirs'],
-  [/\bco ears\b/gi,                      'co-heirs'],
-  [/\bthe fourth born of all creation\b/gi, 'the firstborn of all creation'],
-  [/\bfourth born\b/gi,                  'firstborn'],
-  [/\bpebillion people\b/gi,             'peculiar people'],
-  [/\bsave conscious\b/gi,               'righteousness conscious'],
-  [/\bkisos\b/gi,                        'Jesus'],
-  [/\bnew payment\b/gi,                  'new man'],
-  [/\bnew ports\b/gi,                    'new man'],
 ];
 function _applyBiblicalFixes(text) {
   let out = text;
@@ -2725,13 +2503,6 @@ function pushTranscriptLine(text, detectVerses = false) {
     appliedRules,
   };
   State.transcriptLines.push(line);
-
-  // Track navigation phrases so handleDetection can apply the buffer
-  if (_isNavigationPhrase(displayText)) {
-    _lastNavPhraseTime = Date.now();
-    console.log(`[Nav] Navigation phrase detected: "${displayText.slice(0,60)}"`);
-  }
-
   // Mark transcript as unsaved so the close-safeguard dialog fires
   window.electronAPI?.setTranscriptUnsaved?.(true);
   _pushReplayEvent('transcript-line', {
@@ -2783,7 +2554,9 @@ function updateInterim(text) {
     el.className = 'transcript-interim';
     document.getElementById('transcriptBody').appendChild(el);
   }
-  el.innerHTML = text + '<span class="cursor-blink"></span>';
+  // Security: escape text to prevent XSS from transcript content
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  el.innerHTML = escaped + '<span class="cursor-blink"></span>';
   document.getElementById('transcriptBody').scrollTop = 99999;
 }
 
@@ -2879,118 +2652,11 @@ function stopMicAnimation() {
 }
 
 // ─── AI DETECTION HANDLER ─────────────────────────────────────────────────────
-// ── Navigation buffer ──────────────────────────────────────────────────────
-// Tracks when the preacher announces a chapter ("let us go to Romans 6")
-// without quoting it. Prevents chapter-announcement false positives on verse :1
-const _NAV_PHRASES = [
-  /\blet(?:'?s| us) (?:go to|open|turn to|read|look at)\b/i,
-  /\bopen your bibles? to\b/i,
-  /\bturn (?:with me |your bibles? )?to\b/i,
-  /\blet me read(?: that scripture)?\b/i,
-  /\bplease open to\b/i,
-  /\bgo to\b.*\b(?:chapter|chap)\.?\b/i,
-  /\bread (?:from|this scripture)\b/i,
-  /\bwe(?:'re| are) going to look at\b/i,
-  /\bI want (?:us |you )?to (?:read|look at|go to)\b/i,
-  /\bscripture (?:is|says?|reads?)\b/i,
-  /\bverse\s+\d+\b/i,  // "verse 16" — specific verse called out
-];
-let _lastNavPhraseTime = 0;
-const _NAV_BUFFER_MS = 12000; // 12 seconds after a navigation phrase
-
-function _isNavigationPhrase(text) {
-  return _NAV_PHRASES.some(p => p.test(text));
-}
-
 function handleDetection(detection) {
   const lastLine = (State.transcriptLines || []).slice(-1)[0] || null;
 
-  // Deduplicate: same ref + same source phrase (exact match)
-  if (State.detections.find(d =>
-    d.ref === detection.ref &&
-    String(d.sourceText || '') === String(lastLine?.text || lastLine?.raw || '')
-  )) return;
-
-  // ── Smart deduplication ────────────────────────────────────────────────
-  const now = Date.now();
-
-  // ── Navigation buffer check ──────────────────────────────────────────────
-  // If the last transcript line was a navigation phrase ("let us go to Romans 6")
-  // AND the detection is for verse :1 of a chapter → very likely a false positive.
-  // The preacher is announcing the chapter, not quoting it yet.
-  const sourceText = detection.sourcePhrase || lastLine?.text || lastLine?.raw || '';
-  const isNavPhrase = _isNavigationPhrase(sourceText);
-  if (isNavPhrase) _lastNavPhraseTime = now;
-
-  const withinNavBuffer = (now - _lastNavPhraseTime) < _NAV_BUFFER_MS;
-  if (withinNavBuffer) {
-    // Within 12s of a navigation phrase — apply stricter rules
-    const ref = detection.ref || '';
-    const verseNum = parseInt((ref.match(/:(\d+)$/) || [])[1] || '0', 10);
-    const isFirstVerse = verseNum === 1;
-    const isLowVerse = verseNum <= 3;
-    const isDirectType = (detection.type || '').toLowerCase() === 'direct';
-    const isHighConf = (detection.confidence || 0) >= 0.94;
-
-    if (isFirstVerse && !isHighConf) {
-      console.log(`[Detection] Suppressed (chapter announcement FP): ${ref}`);
-      return;
-    }
-    if (isLowVerse && !isDirectType && !isHighConf) {
-      console.log(`[Detection] Suppressed (nav buffer low verse): ${ref}`);
-      return;
-    }
-  }
-
-  // ── Offline Whisper hallucination guard ────────────────────────────────────
-  // Whisper offline mode produces hallucinations on background noise.
-  // Chapter-range detections (_chapterRange) are almost always FPs in offline mode.
-  // Raise minimum confidence for chapter-only detections when offline.
-  const isOfflineMode = !State.isOnline;
-  if (isOfflineMode) {
-    if (detection._chapterRange) {
-      console.log(`[Detection] Suppressed (offline chapter-range FP): ${detection.ref}`);
-      return;
-    }
-    // Require higher minimum confidence offline — Whisper hallucinations are noisy
-    const offlineMinConf = 0.70;
-    if ((detection.confidence || 0) < offlineMinConf && detection._chapterOnly) {
-      console.log(`[Detection] Suppressed (offline low-confidence chapter-only): ${detection.ref}`);
-      return;
-    }
-  }
-
-  // Window 1: Was this verse PRESENTED to the congregation?
-  // After presenting, suppress for rest of service (60 min).
-  // When preacher's whole sermon is on one verse, we don't want it
-  // firing every 5 minutes — once presented it's done.
-  const PRESENTED_SUPPRESS_MS = 60 * 60 * 1000; // 60 minutes = rest of service
-  const wasPresented = State.detections.find(d =>
-    d.ref === detection.ref &&
-    (d.status === 'presented' || d.status === 'approved') &&
-    (now - (d.createdAt || 0)) < PRESENTED_SUPPRESS_MS
-  );
-  if (wasPresented) {
-    // Allow re-detection only if confidence is very high (direct quote again)
-    const HIGH_CONFIDENCE = 0.97;
-    if ((detection.confidence || 0) < HIGH_CONFIDENCE) {
-      console.log(`[Detection] Suppressed (already presented): ${detection.ref}`);
-      return;
-    }
-  }
-
-  // Window 2: Was this verse detected (but not yet acted on) in the last 5 minutes?
-  // Covers repeated detection of the sermon's main verse
-  const DETECT_SUPPRESS_MS = 5 * 60 * 1000; // 5 minutes
-  const recentSameRef = State.detections.find(d =>
-    d.ref === detection.ref &&
-    (now - (d.createdAt || 0)) < DETECT_SUPPRESS_MS &&
-    d.status !== 'rejected' // allow if user rejected — preacher may re-quote it
-  );
-  if (recentSameRef) {
-    console.log(`[Detection] Suppressed duplicate: ${detection.ref} (seen ${Math.round((now - recentSameRef.createdAt)/1000)}s ago)`);
-    return;
-  }
+  // Deduplicate exact ref + same source phrase
+  if (State.detections.find(d => d.ref === detection.ref && String(d.sourceText || '') === String(lastLine?.text || lastLine?.raw || ''))) return;
 
   // Apply confidence threshold by detection type
   const type = String(detection.type || 'keyword').toLowerCase();
@@ -3524,7 +3190,7 @@ function _updateLiveDisplayRange(book, chapter, startVerse, endVerse, ref, verse
   const extraLS = sfs.scriptureAdditionalLineSpacing ? 0.4 : 0;
   const effLS = extraLS ? Math.min(ls + extraLS, 2.4) : ls;
   const vAlignMap = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
-  const bodyStyle = `font-size:${scaledFs}px;font-weight:${fontWeight};font-style:${fontItalic};text-align:${sfAlign};line-height:${effLS};text-transform:${transform};max-width:100%;word-wrap:break-word;overflow-wrap:break-word;${outline}${shadow}`;
+  const bodyStyle = `font-size:${scaledFs}px;font-weight:${fontWeight};font-style:${fontItalic};text-align:${sfAlign};line-height:${effLS};text-transform:${transform};max-width:none;${outline}${shadow}`;
 
   textTarget.innerHTML = `
     ${refPos !== 'bottom' ? refHtml : ''}
@@ -4529,7 +4195,7 @@ function updateLiveDisplay(book, chapter, verse, ref) {
 
   const extraLS = sfs.scriptureAdditionalLineSpacing ? 0.4 : 0;
   const effLineH = extraLS ? Math.min(sfLineH + extraLS, 2.4) : sfLineH;
-  const bodyStyle = `font-size:${scaledFs}px;text-transform:${transform};font-family:'${sfFamily}',serif;font-weight:${sfWeight};font-style:${sfItalic};text-decoration:${sfUnderline};opacity:${sfOpacity};line-height:${effLineH};text-align:${sfAlign};color:${sfColor};max-width:100%;word-wrap:break-word;overflow-wrap:break-word;${outlineCss}${shadowCss}`;
+  const bodyStyle = `font-size:${scaledFs}px;text-transform:${transform};font-family:'${sfFamily}',serif;font-weight:${sfWeight};font-style:${sfItalic};text-decoration:${sfUnderline};opacity:${sfOpacity};line-height:${effLineH};text-align:${sfAlign};color:${sfColor};max-width:none;${outlineCss}${shadowCss}`;
 
   let refOutlineCss = '';
   const refOutSt = sfs.scriptureRefOutlineStyle || 'none';
@@ -5897,17 +5563,11 @@ function _wireMenuEvents() {
     else toast('⚠ Could not load: ' + (result?.error || file));
   });
 
-  window.electronAPI.on('update-checking', () => {
-    toast('🔍 Checking for updates…');
-  });
-
   // ── Auto-updater events ──────────────────────────────────────────────────
-  window.electronAPI.on('update-available', (info) => {
-    _showUpdateBanner(info.version);
-  });
-  window.electronAPI.on('update-downloaded', (info) => {
-    _showUpdateReadyBanner(info.version);
-  });
+  window.electronAPI.on('update-checking', () => toast('🔍 Checking for updates…'));
+  window.electronAPI.on('update-available-mac', (info) => _showMacUpdateBanner(info.version, info.downloadUrl));
+  window.electronAPI.on('update-available', (info) => _showUpdateBanner(info.version));
+  window.electronAPI.on('update-downloaded', (info) => _showUpdateReadyBanner(info.version));
   window.electronAPI.on('update-download-progress', (data) => {
     const bar = document.getElementById('updateProgressBar');
     if (bar) bar.style.width = `${data.percent}%`;
@@ -5916,61 +5576,43 @@ function _wireMenuEvents() {
   });
 }
 
-function _showUpdateBanner(version) {
-  // Remove existing if any
+function _showMacUpdateBanner(version, downloadUrl) {
   const existing = document.getElementById('updateBanner');
   if (existing) existing.remove();
-
   const banner = document.createElement('div');
   banner.id = 'updateBanner';
-  banner.style.cssText = `
-    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-    background:#1a2035;border:1px solid #d4af37;border-radius:12px;
-    padding:14px 20px;z-index:9999;display:flex;align-items:center;
-    gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;
-  `;
-  banner.innerHTML = `
-    <div style="font-size:20px">🆕</div>
-    <div style="flex:1">
-      <div style="font-weight:700;color:#d4af37;font-size:13px">Update Available — v${version}</div>
-      <div id="updateProgressLabel" style="font-size:11px;color:#9aa4c7;margin-top:2px">Downloading in background…</div>
-      <div style="background:#0d1422;border-radius:4px;height:4px;margin-top:6px;overflow:hidden">
-        <div id="updateProgressBar" style="height:100%;background:#d4af37;width:0%;transition:width .3s"></div>
-      </div>
-    </div>
-    <button onclick="document.getElementById('updateBanner').remove()" style="
-      background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px
-    ">✕</button>
-  `;
+  banner.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2035;border:1px solid #d4af37;border-radius:12px;padding:14px 20px;z-index:9999;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;`;
+  banner.innerHTML = `<div style="font-size:20px">🆕</div><div style="flex:1"><div style="font-weight:700;color:#d4af37;font-size:13px">Update Available — v${version}</div><div style="font-size:11px;color:#9aa4c7;margin-top:2px">Click Download to get the latest version.</div></div><button onclick="window.electronAPI?.openExternal?.('${downloadUrl}')" style="background:#d4af37;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">⬇ Download</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
   document.body.appendChild(banner);
+}
+
+function _showUpdateBanner(version) {
+  const existing = document.getElementById('updateBanner');
+  if (existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.id = 'updateBanner';
+  banner.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2035;border:1px solid #d4af37;border-radius:12px;padding:14px 20px;z-index:9999;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:520px;`;
+  banner.innerHTML = `<div style="font-size:20px">🆕</div><div style="flex:1"><div style="font-weight:700;color:#d4af37;font-size:13px">Update Available — v${version}</div><div id="updateProgressLabel" style="font-size:11px;color:#9aa4c7;margin-top:2px">A new version of AnchorCast is ready.</div><div style="background:#0d1422;border-radius:4px;height:4px;margin-top:6px;overflow:hidden;display:none" id="updateProgressWrap"><div id="updateProgressBar" style="height:100%;background:#d4af37;width:0%;transition:width .3s"></div></div></div><button id="updateDownloadBtn" onclick="_startUpdateDownload()" style="background:#d4af37;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">⬇ Download</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
+  document.body.appendChild(banner);
+}
+
+function _startUpdateDownload() {
+  const btn = document.getElementById('updateDownloadBtn');
+  const lbl = document.getElementById('updateProgressLabel');
+  const wrap = document.getElementById('updateProgressWrap');
+  if (btn) { btn.disabled = true; btn.textContent = 'Downloading…'; }
+  if (lbl) lbl.textContent = 'Downloading update…';
+  if (wrap) wrap.style.display = 'block';
+  window.electronAPI?.updaterDownloadNow?.();
 }
 
 function _showUpdateReadyBanner(version) {
   const existing = document.getElementById('updateBanner');
   if (existing) existing.remove();
-
   const banner = document.createElement('div');
   banner.id = 'updateBanner';
-  banner.style.cssText = `
-    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-    background:#1a2035;border:1px solid #2ecc71;border-radius:12px;
-    padding:14px 20px;z-index:9999;display:flex;align-items:center;
-    gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;
-  `;
-  banner.innerHTML = `
-    <div style="font-size:20px">✅</div>
-    <div style="flex:1">
-      <div style="font-weight:700;color:#2ecc71;font-size:13px">v${version} Ready to Install</div>
-      <div style="font-size:11px;color:#9aa4c7;margin-top:2px">Restart AnchorCast to apply the update.</div>
-    </div>
-    <button onclick="window.electronAPI?.updaterInstallNow?.()" style="
-      background:#2ecc71;border:none;color:#000;font-weight:700;font-size:11px;
-      padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap
-    ">Restart & Install</button>
-    <button onclick="document.getElementById('updateBanner').remove()" style="
-      background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px
-    ">✕</button>
-  `;
+  banner.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2035;border:1px solid #2ecc71;border-radius:12px;padding:14px 20px;z-index:9999;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;`;
+  banner.innerHTML = `<div style="font-size:20px">✅</div><div style="flex:1"><div style="font-weight:700;color:#2ecc71;font-size:13px">v${version} Ready to Install</div><div style="font-size:11px;color:#9aa4c7;margin-top:2px">Restart AnchorCast to apply the update.</div></div><button onclick="window.electronAPI?.updaterInstallNow?.()" style="background:#2ecc71;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">Restart & Install</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
   document.body.appendChild(banner);
 }
 
@@ -7519,11 +7161,19 @@ async function addMediaFiles(files) {
       continue;
     }
     if (!type) continue;
-    if (!file.path) {
+
+    // F4 fix: webSecurity:true means file.path is empty on File objects.
+    // Use webUtils.getPathForFile() which is the correct Electron API.
+    let filePath = file.path || '';
+    if (!filePath && window.electronAPI?.getPathForFile) {
+      filePath = window.electronAPI.getPathForFile(file) || '';
+    }
+
+    if (!filePath) {
       rejected.push({ name: file.name, ext, noPath: true });
       continue;
     }
-    acceptedPaths.push(file.path);
+    acceptedPaths.push(filePath);
   }
 
   if (rejected.length > 0) {
@@ -7812,34 +7462,11 @@ function showMediaContextMenu(e, item) {
   const menu = document.getElementById('mediaContextMenu');
   if (!menu) return;
   if (item?.id != null) menu.dataset.mediaid = String(item.id);
-
-  // Show briefly off-screen to measure real dimensions
-  menu.style.visibility = 'hidden';
   menu.style.display = 'block';
-  menu.style.left = '0px';
-  menu.style.top = '0px';
-
-  const menuW = menu.offsetWidth || 260;
-  const menuH = menu.offsetHeight || 300;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  // Position so menu is always fully inside the viewport
-  // If click is near bottom — open upward; if near right — open leftward
-  let x = e.clientX + 2;
-  let y = e.clientY + 2;
-
-  if (x + menuW > vw - 8) x = e.clientX - menuW - 2;
-  if (y + menuH > vh - 8) y = e.clientY - menuH - 2;
-
-  // Final clamp so it never goes off any edge
-  x = Math.max(4, Math.min(x, vw - menuW - 4));
-  y = Math.max(4, Math.min(y, vh - menuH - 4));
-
+  const x = Math.min(e.clientX, window.innerWidth - 220);
+  const y = Math.min(e.clientY, window.innerHeight - 160);
   menu.style.left = x + 'px';
-  menu.style.top  = y + 'px';
-  menu.style.visibility = 'visible';
-
+  menu.style.top = y + 'px';
   setTimeout(() => document.addEventListener('click', hideMediaContextMenu, { once: true }), 10);
 }
 
@@ -9375,7 +9002,7 @@ function cycleTranscriptSource() {
   // Which sources are currently available
   const available = {
     deepgram: !!State.settings?.deepgramKey,
-    local:    true, // always allow selecting local — we'll try to start Whisper
+    local:    !!State.whisperLocalReady,
     cloud:    !!State.settings?.openAiKey,
   };
 
@@ -9389,6 +9016,7 @@ function cycleTranscriptSource() {
   }
 
   if (!picked) {
+    // Nothing configured — show specific guidance based on what's missing
     _showWhisperSetupBanner({
       reason: 'no_python',
       setupBatExists: true,
@@ -9411,23 +9039,6 @@ function cycleTranscriptSource() {
 
   State.whisperSource = picked;
 
-  // If switching to local and Whisper isn't ready yet, try to start it
-  if (picked === 'local' && !State.whisperLocalReady) {
-    toast('💻 Local Whisper — starting up…');
-    window.electronAPI?.whisperStart?.().then(result => {
-      if (result?.ready) {
-        State.whisperLocalReady = true;
-        updateSrcToggleUI();
-        toast('💻 Local Whisper — ready');
-      } else {
-        // Whisper failed to start — show setup banner
-        window.electronAPI?.runWhisperSetup?.();
-      }
-    }).catch(() => {
-      window.electronAPI?.runWhisperSetup?.();
-    });
-  }
-
   // If recording, switch live
   if (State.isRecording) {
     stopDeepgramSocket();
@@ -9439,7 +9050,7 @@ function cycleTranscriptSource() {
 
   const msgs = {
     deepgram: '⚡ Deepgram — real-time streaming active',
-    local:    '💻 Local Whisper — offline',
+    local:    '💻 Local Whisper — offline active',
     cloud:    '☁ OpenAI Whisper — cloud active',
   };
   toast(msgs[State.whisperSource]);
@@ -9492,9 +9103,8 @@ function startDeepgramStream() {
     smart_format:      'true',
     punctuate:         'true',
     interim_results:   'true',
-    utterance_end_ms:  '600',   // reduced from 1200ms — faster sentence finalization
+    utterance_end_ms:  '1200',
     vad_events:        'true',
-    no_delay:          'true',  // minimize Deepgram server-side buffering latency
     encoding:          'linear16',
     sample_rate:       '16000',
     channels:          '1',
@@ -9556,8 +9166,6 @@ function startDeepgramStream() {
 }
 
 function stopDeepgramSocket() {
-  _dgSendBuf = [];
-  _dgSendSize = 0;
   if (deepgramSocket) {
     try {
       // Send KeepAlive close signal to Deepgram
@@ -9573,27 +9181,9 @@ function stopDeepgramSocket() {
 }
 
 // Send PCM to Deepgram socket (called from AudioWorklet handler when source=deepgram)
-// Deepgram send buffer — batch small PCM chunks to reduce WebSocket overhead
-let _dgSendBuf = [];
-let _dgSendSize = 0;
-const _DG_SEND_THRESHOLD = 3200; // ~100ms at 16kHz (16-bit = 2 bytes/sample → 3200 bytes)
-
 function sendPcmToDeepgram(int16Buffer) {
   if (!deepgramSocket || deepgramSocket.readyState !== WebSocket.OPEN) return;
-  _dgSendBuf.push(int16Buffer);
-  _dgSendSize += int16Buffer.byteLength;
-  if (_dgSendSize >= _DG_SEND_THRESHOLD) {
-    // Merge and send
-    const merged = new Uint8Array(_dgSendSize);
-    let offset = 0;
-    for (const buf of _dgSendBuf) {
-      merged.set(new Uint8Array(buf), offset);
-      offset += buf.byteLength;
-    }
-    deepgramSocket.send(merged.buffer);
-    _dgSendBuf = [];
-    _dgSendSize = 0;
-  }
+  deepgramSocket.send(int16Buffer);
 }
 
 // ── Old toggle aliases (keep for compat) ──────────────────────────────────────
@@ -9988,6 +9578,41 @@ async function generateSermonNotes() {
   }
 }
 
+// Clipboard helper that works on both HTTPS (navigator.clipboard) and
+// plain HTTP local network origins (textarea + execCommand fallback).
+// Used by remote URL copy buttons which run on http://192.168.x.x
+function _copyToClipboardAnyContext(text, successMsg, onSuccess) {
+  const finish = () => {
+    if (successMsg) toast(successMsg);
+    if (onSuccess) onSuccess();
+  };
+  // Method 1: Electron IPC (works in desktop app)
+  if (window.electronAPI?.copyToClipboard) {
+    window.electronAPI.copyToClipboard(text);
+    finish(); return;
+  }
+  // Method 2: navigator.clipboard (HTTPS or localhost only)
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(finish).catch(() => _execCommandCopy(text, successMsg, onSuccess));
+    return;
+  }
+  // Method 3: textarea + execCommand (works on any HTTP origin)
+  _execCommandCopy(text, successMsg, onSuccess);
+}
+function _execCommandCopy(text, successMsg, onSuccess) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (ok) { if (successMsg) toast(successMsg); if (onSuccess) onSuccess(); }
+    else toast('⚠ Could not copy — please copy the URL manually');
+  } catch(_) { toast('⚠ Could not copy — please copy the URL manually'); }
+}
+
 async function copyNotesToClipboard() {
   const content = document.getElementById('notesOutput').textContent;
   if (!content || content.startsWith('Notes will')) { toast('⚠ Generate notes first'); return; }
@@ -10345,7 +9970,7 @@ function showAboutModal() {
     <div style="background:#1a1a2e;border:1px solid #333;border-radius:14px;padding:36px 40px;max-width:440px;width:90%;color:#e0e0e0;font-family:inherit;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6);position:relative;">
       <div style="font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:6px;">&#10022;</div>
       <h2 style="margin:0 0 4px;font-size:24px;color:#fff;font-weight:700;">AnchorCast</h2>
-      <div style="font-size:13px;color:#888;margin-bottom:18px;">${window.electronAPI?.appVersion ? 'v'+window.electronAPI.appVersion : 'v1.2.0'}</div>
+      <div style="font-size:13px;color:#888;margin-bottom:18px;">v1.2.0</div>
       <p style="font-size:14px;line-height:1.7;color:#bbb;margin:0 0 18px;">
         AI-powered worship presentation, live sermon transcription &amp; Bible verse display for churches.
       </p>
@@ -11937,7 +11562,7 @@ function renderReplayTimelineList() {
     const row = document.createElement('button');
     row.type = 'button';
     row.style.cssText = `text-align:left;background:${idx===State.replayIndex ? 'rgba(212,175,55,.12)' : '#11131a'};border:1px solid ${idx===State.replayIndex ? '#d4af37' : '#232838'};color:#edf1ff;border-radius:8px;padding:8px;cursor:pointer`;
-    row.innerHTML = `<div style="font-size:11px;color:#9aa4c7">${buildReplaySummary(ev)}</div><div style="font-size:12px">${(ev.payload?.ref || ev.payload?.title || ev.payload?.text || ev.payload?.summary || '').toString().slice(0,90)}</div>`;
+    row.innerHTML = `<div style="font-size:11px;color:#9aa4c7">${buildReplaySummary(ev)}</div><div style="font-size:12px">${escapeHtml((ev.payload?.ref || ev.payload?.title || ev.payload?.text || ev.payload?.summary || '').toString().slice(0,90))}</div>`;
     row.addEventListener('click', () => setReplayTimelineIndex(idx));
     list.appendChild(row);
   });
