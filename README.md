@@ -179,10 +179,10 @@ npm run build:mac:full:x64
 npm run build:mac:light:x64
 ```
 
-### Auto-Update packages (publish to GitHub)
+### Auto-Update packages
 ```bash
-GH_TOKEN=your_token npm run build:update:win
-GH_TOKEN=your_token npm run build:update:mac   # runs arm64 + x64
+npm run build:update:win
+npm run build:update:mac   # runs arm64 + x64
 ```
 
 ### Standalone Timer
