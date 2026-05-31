@@ -5,26 +5,16 @@ const path=require('path');
 const os=require('os');
 
 // ── Force userData to use 'AnchorCast' (capital A+C) not 'anchorcast' ────────
-// Override userData to use consistent capitalised folder name on all platforms.
-// Windows: AppData\Roaming\AnchorCast\
-// Mac:     ~/Library/Application Support/AnchorCast/
-// Without this, Electron uses lowercase "anchorcast" from package.json name.
-(function() {
-  try {
-    let _userData;
-    if (process.platform === 'win32') {
-      _userData = path.join(
-        process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-        'AnchorCast'
-      );
-    } else if (process.platform === 'darwin') {
-      _userData = path.join(os.homedir(), 'Library', 'Application Support', 'anchorcast');
-    } else {
-      _userData = path.join(os.homedir(), '.config', 'AnchorCast');
-    }
-    app.setPath('userData', _userData);
-  } catch(_) {}
-})();
+// Electron derives userData from package.json "name" which is lowercase.
+// We override it here before any path is read so all data goes to:
+// AppData\Roaming\AnchorCast\ (matching what users expect and what NSIS writes to)
+if (!app.isPackaged || process.platform === 'win32') {
+  const _userData = path.join(
+    process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+    'AnchorCast'
+  );
+  try { app.setPath('userData', _userData); } catch(_) {}
+}
 
 // ── Timer standalone mode ─────────────────────────────────────────────────────
 // If launched with --timer flag, load timer-main.js and stop here.
@@ -51,7 +41,7 @@ const REG_FILE     = path.join(app.getPath('userData'), 'registration.json');
 // Gmail SMTP config
 const SMTP_HOST    = 'smtp.gmail.com';
 const SMTP_PORT    = 587;
-const SMTP_USER    = 'REPLACE_WITH_EMAIL_ADDRESS';
+const SMTP_USER    = 'REPLACE_WITH_APP_EMAIL_ADDRESS';
 const SMTP_PASS    = 'REPLACE_WITH_APP_PASSWORD';  // Gmail App Password (16 chars)
 const FROM_EMAIL   = 'donotreply@anchorcastapp.com';
 const APP_PROTOCOL = 'anchorcast';
@@ -827,6 +817,28 @@ app.whenReady().then(async ()=>{
     }
     // Normalize separators
     filePath = filePath.replace(/\//g, path.sep);
+    filePath = path.resolve(filePath);
+
+    // ── Security: restrict to allowed directories ──────────────────────────
+    const allowedRoots = [
+      APPDATA_ROOT,
+      path.join(__dirname, '..', 'assets'),
+      path.join(__dirname, 'assets'),
+    ].map(p => path.resolve(p) + path.sep);
+
+    const isAllowed = allowedRoots.some(root => filePath.startsWith(root));
+    if (!isAllowed) {
+      console.warn('[media://] Blocked access outside allowed dirs:', filePath);
+      return new Response('Forbidden', { status: 403 });
+    }
+    // ── Extension allowlist — media files only ─────────────────────────────
+    const ext = path.extname(filePath).toLowerCase().slice(1);
+    const ALLOWED_EXT = new Set(['mp4','webm','mov','mkv','avi','wmv','m4v','mpg','mpeg','flv','3gp',
+      'mp3','wav','ogg','flac','aac','m4a','wma','jpg','jpeg','png','gif','webp','bmp','svg']);
+    if (!ALLOWED_EXT.has(ext)) {
+      console.warn('[media://] Blocked disallowed extension:', ext, filePath);
+      return new Response('Forbidden', { status: 403 });
+    }
 
     try {
       const stat  = fs.statSync(filePath);
@@ -910,163 +922,55 @@ app.whenReady().then(async ()=>{
     isModelInstalled(whisperModel.replace('.en', '')); // also check multilingual variant
 
   if (_modelReady) {
-    // Start Whisper after window is ready — guarantees process.resourcesPath is set
-    // Use longer delay after update to allow old process to fully exit
     _runAfterWindowReady(() => {
       let _whisperStartAttempts = 0;
       const _tryStartWhisper = () => {
         _whisperStartAttempts++;
         startWhisperServer(whisperModel).then(ok => {
           if (!ok && _whisperStartAttempts < 4) {
-            // Retry after 3s — old server may still be shutting down after update
             console.log(`[Whisper] Start attempt ${_whisperStartAttempts} failed — retrying in 3s...`);
             setTimeout(_tryStartWhisper, 3000);
           } else if (!ok) {
-            console.log('[Whisper] Not available after 4 attempts — use setup_whisper.bat to install');
+            console.log('[Whisper] Not available after 4 attempts');
           }
         });
       };
       _tryStartWhisper();
-    }, 2000); // 2s delay — gives old process time to exit after update restart
+    }, 2000);
   } else {
     // Model not installed — detect WHY and show the correct banner.
     // Must run after did-finish-load so mainWindow.webContents.send() is not lost.
     _runAfterWindowReady(() => {
-      const isMac = process.platform === 'darwin';
-      const isWin = process.platform === 'win32';
-      const setupBatExists  = fs.existsSync(resolveRuntimeResource('setup_whisper.bat'));
-      const setupShExists   = fs.existsSync(resolveRuntimeResource('setup_whisper.sh'));
-      const setupScriptExists = isWin ? setupBatExists : setupShExists;
-
-      const { spawnSync: _spawnSync } = require('child_process');
-
-      // On Mac packaged apps, Electron strips PATH to /usr/bin:/bin.
-      // Restore it by reading the user's shell PATH at runtime.
-      let shellPath = process.env.PATH || '';
-      if (isMac) {
-        try {
-          const shell = process.env.SHELL || '/bin/zsh';
-          const r = _spawnSync(shell, ['-l', '-c', 'echo $PATH'], {
-            encoding: 'utf8', timeout: 5000,
-          });
-          if (r.status === 0 && r.stdout.trim()) {
-            shellPath = r.stdout.trim();
-          }
-        } catch { /* use existing PATH */ }
-      }
-
-      const _fullEnv = {
-        ...process.env,
-        PATH: [
-          process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
-          '/opt/homebrew/bin',
-          '/opt/homebrew/sbin',
-          '/usr/local/bin',
-          '/usr/bin',
-          '/bin',
-          shellPath,
-        ].filter(Boolean).join(':'),
-        PYTHONPATH: [
-          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.14/site-packages` : '',
-          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.13/site-packages` : '',
-          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.12/site-packages` : '',
-          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.11/site-packages` : '',
-          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.10/site-packages` : '',
-          process.env.HOME ? `${process.env.HOME}/.local/lib/python3.9/site-packages` : '',
-          process.env.PYTHONPATH || '',
-        ].filter(Boolean).join(':'),
-      };
-
-      // Find Python — bundled python takes priority over system Python
-      // so that faster_whisper (installed in bundled python) is always found
-      const bundledPy312 = resolveRuntimeResource('python', 'bin', 'python3.12');
-      const bundledPy3   = resolveRuntimeResource('python', 'bin', 'python3');
-
-      const pyCandidates = isWin ? [
+      const setupBatExists = fs.existsSync(resolveRuntimeResource('setup_whisper.bat'));
+      const pyPaths = [
         path.join(process.resourcesPath || '', 'python', 'python.exe'),
         path.join(app.getAppPath(), 'python', 'python.exe'),
         path.join(__dirname, '..', 'python', 'python.exe'),
         path.join(process.cwd(), 'python', 'python.exe'),
-        'python', 'python3',
-      ] : [
-        // Bundled python FIRST — has faster_whisper installed
-        bundledPy312,
-        bundledPy3,
-        // System fallbacks
-        '/opt/homebrew/bin/python3.12',
-        '/opt/homebrew/bin/python3.13',
-        '/opt/homebrew/bin/python3.14',
-        '/opt/homebrew/bin/python3.11',
-        '/opt/homebrew/bin/python3.10',
-        '/opt/homebrew/bin/python3',
-        '/usr/local/bin/python3',
-        '/usr/bin/python3',
-        'python3', 'python',
       ];
-
-      let activePy = null;
-      for (const candidate of pyCandidates) {
-        try {
-          const r = _spawnSync(candidate, ['-c',
-            'import sys; v=sys.version_info; exit(0 if v.major==3 and v.minor>=10 else 1)'
-          ], {
-            encoding: 'utf8', timeout: 3000, windowsHide: true, env: _fullEnv,
-          });
-          if (r.status === 0) {
-            activePy = candidate;
-            console.log(`[Whisper] Found Python >=3.10 at: ${candidate}`);
-            break;
-          }
-        } catch { /* try next */ }
-      }
-
-      const hasPython = !!activePy;
+      const bundledPy = pyPaths.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || '';
+      const hasPython = !!bundledPy;
 
       if (!hasPython) {
         console.log('[Whisper] Python not found — showing no_python banner');
-        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_python', setupBatExists: setupScriptExists });
+        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_python', setupBatExists });
         return;
       }
 
       const { spawnSync } = require('child_process');
+      const fwCheck = spawnSync(bundledPy, ['-c', 'from faster_whisper import WhisperModel'], {
+        encoding: 'utf8', timeout: 8000, windowsHide: true,
+      });
 
-      // Build full candidate list to check faster_whisper against all available Pythons
-      const allPyCandidates = [...new Set([
-        activePy,
-        '/opt/homebrew/bin/python3.14',
-        '/opt/homebrew/bin/python3.13',
-        '/opt/homebrew/bin/python3.12',
-        '/opt/homebrew/bin/python3',
-        '/usr/local/bin/python3',
-        '/usr/bin/python3',
-        'python3',
-      ].filter(Boolean))];
-
-      // Check with full env so pip --user packages are visible
-      let fwOk = false;
-      for (const pyCandidate of allPyCandidates) {
-        try {
-          const r = spawnSync(pyCandidate, ['-c', 'from faster_whisper import WhisperModel'], {
-            encoding: 'utf8', timeout: 8000, windowsHide: true, env: _fullEnv,
-          });
-          if (r.status === 0) { fwOk = true; break; }
-          // Also try with --user site enabled explicitly
-          const r2 = spawnSync(pyCandidate, ['-c',
-            'import site, sys; sys.path += [site.getusersitepackages()] if hasattr(site,"getusersitepackages") else []; from faster_whisper import WhisperModel'
-          ], { encoding: 'utf8', timeout: 8000, windowsHide: true, env: _fullEnv });
-          if (r2.status === 0) { fwOk = true; break; }
-        } catch { /* try next */ }
-      }
-
-      if (!fwOk) {
+      if (fwCheck.status !== 0) {
         console.log('[Whisper] faster-whisper missing — showing no_faster_whisper banner');
-        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_faster_whisper', setupBatExists: setupScriptExists });
+        mainWindow?.webContents.send('whisper-setup-needed', { reason: 'no_faster_whisper', setupBatExists });
         return;
       }
 
       console.log('[Whisper] Model not found — showing model_not_found banner');
       mainWindow?.webContents.send('whisper-setup-needed', {
-        reason: 'model_not_found', model: whisperModel, setupBatExists: setupScriptExists,
+        reason: 'model_not_found', model: whisperModel, setupBatExists,
       });
     }, 2000); // 2s after window ready — allows renderer IPC to fully register
   }
@@ -1077,12 +981,11 @@ ipcMain.on('transcript-unsaved-state', (_, unsaved) => { _transcriptUnsaved = un
 
 // Before closing: if there's an unsaved transcript, ask the user
 app.on('before-quit', (e) => {
-  // Always stop Whisper server on quit (important on Mac where window-all-closed doesn't quit)
+  // Always stop Whisper on quit — prevents orphaned process on Mac relaunch
   stopWhisperServer();
   stopNdi();
   stopHttpServer();
-  if(rendererServer){ rendererServer.close(); rendererServer=null; }
-
+  if(rendererServer){ rendererServer.close(); rendererServer=null; rendererPort=0; }
   if (!_transcriptUnsaved) return;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   e.preventDefault(); // block quit temporarily
@@ -1095,16 +998,26 @@ ipcMain.on('quit-cancelled', () => { /* do nothing — user changed mind */ });
 ipcMain.on('get-app-version', (e) => { e.returnValue = app.getVersion(); });
 
 app.on('window-all-closed',()=>{
-  // Guard: do not quit if mainWindow still exists — it may be temporarily
-  // hidden during a GPU context switch (e.g. external monitor change).
-  if (mainWindow && !mainWindow.isDestroyed()) return;
   stopNdi();
   stopHttpServer();
   stopWhisperServer();
-  if(rendererServer){ rendererServer.close(); rendererServer=null; }
+  if(rendererServer){ rendererServer.close(); rendererServer=null; rendererPort=0; }
   if(process.platform!=='darwin') app.quit();
 });
-app.on('activate',()=>{ if(!BrowserWindow.getAllWindows().length) createMainWindow(); });
+
+app.on('activate', async () => {
+  // macOS keeps the app alive after the last window closes. A Dock click must
+  // rebuild the full splash -> main flow, not just the splash.
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    stopWhisperServer();
+    await createSplashAndMain();
+    return;
+  }
+
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 
 // ── Windows ───────────────────────────────────────────────────────────────────
 let rendererServer = null;
@@ -1432,6 +1345,58 @@ function buildRegistrationHtml() {
 </body></html>`;
 }
 
+// macOS dock re-activate / relaunch helper.
+// Previously this only recreated the splash window. On macOS, after all
+// windows are closed the app remains alive in the Dock. Clicking the Dock
+// icon fires app.activate, but because createSplashAndMain() did not recreate
+// the main window, the splash could load forever while no main window appeared.
+let _creatingMainFromActivate = false;
+async function createSplashAndMain() {
+  if (_creatingMainFromActivate) return;
+  _creatingMainFromActivate = true;
+  try {
+    // If the main window still exists, just bring it forward.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      return;
+    }
+
+    // Reset stale window refs from a previous close cycle.
+    mainWindow = null;
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      try { splashWindow.close(); } catch(_) {}
+    }
+    splashWindow = null;
+
+    // The renderer server is stopped in window-all-closed on macOS. Restart it
+    // before loading index.html, otherwise splash.html may load but main will
+    // silently point to an invalid/empty rendererPort.
+    if (!rendererPort || !rendererServer) {
+      console.log('[App] Starting renderer server for main window relaunch...');
+      await startRendererServer();
+    }
+
+    createSplashWindow();
+    createMainWindow();
+  } catch (err) {
+    console.error('[App] createSplashAndMain failed:', err);
+    try {
+      if (!rendererPort || !rendererServer) await startRendererServer();
+      createMainWindow();
+    } catch (fallbackErr) {
+      console.error('[App] createMainWindow fallback failed:', fallbackErr);
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        try { splashWindow.close(); } catch(_) {}
+        splashWindow = null;
+      }
+    }
+  } finally {
+    _creatingMainFromActivate = false;
+  }
+}
+
 function createSplashWindow(){
   if(splashWindow && !splashWindow.isDestroyed()) return splashWindow;
   splashShownAt = Date.now();
@@ -1439,7 +1404,7 @@ function createSplashWindow(){
     width: 520, height: 520, frame: false, transparent: true, resizable: false,
     show: false, alwaysOnTop: true, backgroundColor: '#00000000',
     icon: APP_ICON,
-    webPreferences:{ nodeIntegration:false, contextIsolation:true, backgroundThrottling:false }
+    webPreferences:{ nodeIntegration:false, contextIsolation:true, backgroundThrottling:false, preload:path.join(__dirname,'preload.js') }
   });
   if (rendererPort) {
     splashWindow.loadURL(`http://127.0.0.1:${rendererPort}/splash.html`);
@@ -1457,6 +1422,16 @@ function createSplashWindow(){
 }
 
 function createMainWindow(){
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return mainWindow;
+  }
+  if (!rendererPort) {
+    console.error('[App] createMainWindow called before renderer server was ready');
+    throw new Error('Renderer server is not ready');
+  }
   const{width,height}=screen.getPrimaryDisplay().workAreaSize;
   mainWindow=new BrowserWindow({
     icon: APP_ICON,
@@ -1469,43 +1444,37 @@ function createMainWindow(){
       nodeIntegration:false,
       contextIsolation:true,
       preload:path.join(__dirname,'preload.js'),
-      webSecurity: false,
+
     },
     titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',
     trafficLightPosition:{x:16,y:12},
   });
-  mainWindow.loadURL(`http://127.0.0.1:${rendererPort}/index.html`);
-  // Recover from white/frozen screen caused by display changes
-  mainWindow.on('unresponsive', () => {
-    console.log('[MainWindow] Unresponsive — will attempt recovery');
-    // Give it 3 seconds to recover naturally first
-    setTimeout(() => {
-      try {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          // Try a soft JS ping first
-          mainWindow.webContents.executeJavaScript('1+1')
-            .then(() => {
-              console.log('[MainWindow] Recovered naturally');
-            })
-            .catch(() => {
-              // Still frozen — reload the renderer
-              console.log('[MainWindow] Still unresponsive — reloading renderer');
-              mainWindow.webContents.reload();
-            });
-        }
-      } catch(e) {
-        try { mainWindow.webContents.reload(); } catch(_) {}
-      }
-    }, 3000);
+  let mainWindowRevealed = false;
+  mainWindow.loadURL(`http://127.0.0.1:${rendererPort}/index.html`).catch(err => {
+    console.error('[App] mainWindow loadURL failed:', err);
+    try { mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html')); } catch(e) { console.error('[App] mainWindow loadFile fallback failed:', e); }
   });
 
-  mainWindow.on('responsive', () => {
-    console.log('[MainWindow] Responsive again');
-  });
+  // Fail-safe: if did-finish-load is missed or renderer hangs, do not leave
+  // users stuck on the splash forever. Show the main window after a grace period.
+  const revealMainFallback = setTimeout(() => {
+    if (mainWindowRevealed) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    console.warn('[App] Main window reveal fallback fired');
+    mainWindowRevealed = true;
+    try { mainWindow.maximize(); mainWindow.setOpacity(1); mainWindow.show(); mainWindow.focus(); } catch(_) {}
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      try { splashWindow.close(); } catch(_) {}
+      splashWindow = null;
+    }
+  }, 12000);
 
   mainWindow.webContents.once('did-finish-load',()=>{
     const elapsed = Date.now() - splashShownAt;
     const reveal = () => {
+      if (mainWindowRevealed) return;
+      mainWindowRevealed = true;
+      clearTimeout(revealMainFallback);
       if (!isRegistered()) {
         if(splashWindow && !splashWindow.isDestroyed()){
           try { splashWindow.close(); } catch(e) {}
@@ -1539,11 +1508,15 @@ function createMainWindow(){
         stk();
       }
       if(isDev) mainWindow.webContents.openDevTools({mode:'detach'});
+  const { globalShortcut } = require('electron');
+  globalShortcut.register('F12', () => { BrowserWindow.getFocusedWindow()?.webContents.toggleDevTools(); });
+  globalShortcut.register('CmdOrCtrl+Shift+I', () => { BrowserWindow.getFocusedWindow()?.webContents.toggleDevTools(); });
     };
     const wait = Math.max(0, MIN_SPLASH_MS - elapsed);
     setTimeout(reveal, wait);
   });
   mainWindow.on('closed',()=>{
+    clearTimeout(revealMainFallback);
     mainWindow=null;
     if(projectionWindow){projectionWindow.close();projectionWindow=null;}
     // Close timer window when main app closes
@@ -1555,6 +1528,7 @@ function createMainWindow(){
 }
 
 let projectionPowerBlockerId = null;
+let projectionDisplayListenersAttached = false;
 
 function createProjectionWindow(displayId){
   if(projectionWindow){projectionWindow.focus();return;}
@@ -1574,7 +1548,6 @@ function createProjectionWindow(displayId){
     // This prevents the operator accidentally selecting/minimising the
     // projection window while switching apps on the laptop screen.
     skipTaskbar: !isSameDisplayAsMain,
-    minimizable: false, // prevents Win+D and taskbar from minimizing projection
     backgroundColor:'#000000',
     show: false,
     webPreferences:{
@@ -1582,7 +1555,7 @@ function createProjectionWindow(displayId){
       contextIsolation:true,
       preload:path.join(__dirname,'preload.js'),
       backgroundThrottling:false,
-      webSecurity:false,
+
     },
   });
   projectionWindow._targetDisplayId = target.id;
@@ -1621,8 +1594,6 @@ function createProjectionWindow(displayId){
   // Guard: restore projection if Win+D, Win+Tab or taskbar causes it to
   // lose fullscreen or become minimized. Check every 500ms.
   let _projGuardInterval = null;
-  let _projGuardPaused = false; // paused during HDMI removal to avoid GPU conflicts
-
   function _startProjGuard() {
     if (_projGuardInterval) return;
     _projGuardInterval = setInterval(() => {
@@ -1632,9 +1603,6 @@ function createProjectionWindow(displayId){
           _projGuardInterval = null;
           return;
         }
-        // Don't fight the OS during display removal/reconnection
-        if (_projGuardPaused) return;
-
         if (!isSameDisplayAsMain) {
           if (projectionWindow.isMinimized()) {
             projectionWindow.restore();
@@ -1652,107 +1620,93 @@ function createProjectionWindow(displayId){
     }, 500);
   }
   _startProjGuard();
-
-  // Intercept minimize at the event level — Win+D bypasses minimizable:false on some Windows versions
-  projectionWindow.on('minimize', () => {
-    if (!isSameDisplayAsMain) {
-      try {
-        projectionWindow.restore();
-        projectionWindow.setFullScreen(true);
-      } catch(e) {}
-    }
+  projectionWindow.on('closed', () => {
+    if (_projGuardInterval) { clearInterval(_projGuardInterval); _projGuardInterval = null; }
   });
 
-  // ── HDMI smart wait-and-restore ──────────────────────────────────────────
-  // When the projection display is disconnected: pause the guard, hide the
-  // window off-screen (keeps it alive), notify operator.
-  // When it reconnects: move back, restore fullscreen, re-push content.
-  // Only attach once per app session to avoid duplicate listeners.
-  if (!projectionWindow._hdmiListenersAttached) {
-    projectionWindow._hdmiListenersAttached = true;
-    let _hdmiPaused = false;
+  if (projectionPowerBlockerId !== null && powerSaveBlocker.isStarted(projectionPowerBlockerId)) {
+    powerSaveBlocker.stop(projectionPowerBlockerId);
+  }
+  projectionPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+
+  if (!projectionDisplayListenersAttached) {
+    projectionDisplayListenersAttached = true;
 
     screen.on('display-removed', (_evt, removedDisplay) => {
       if (!projectionWindow || projectionWindow.isDestroyed()) return;
       if (projectionWindow._targetDisplayId !== removedDisplay.id) return;
 
-      _hdmiPaused = true;
-      projectionWindow._waitingForDisplay = true;
+      projectionWindow._lostTargetDisplay = true;
+      const primaryId  = screen.getPrimaryDisplay().id;
+      const remaining  = screen.getAllDisplays();
+      // Look for another external display (not the primary/laptop screen)
+      const otherExternal = remaining.find(d => d.id !== primaryId);
 
-      // Pause guard so it doesn't fight the OS during GPU teardown
-      _projGuardPaused = true;
-
-      try {
-        // Exit fullscreen and park the window off-screen — keeps it alive
-        projectionWindow.setFullScreen(false);
-        projectionWindow.setAlwaysOnTop(false);
+      if (otherExternal) {
+        // Move to another available external display
+        const b = otherExternal.bounds;
+        projectionWindow._targetDisplayId   = otherExternal.id;
+        projectionWindow._displayScaleFactor = otherExternal.scaleFactor || 1;
+        projectionWindow._displayWidth  = b.width;
+        projectionWindow._displayHeight = b.height;
+        projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+        projectionWindow.setFullScreen(true);
+        mainWindow?.webContents.send('display-warning',
+          { msg: 'Projection moved to another external display.' });
+      } else {
+        // No external display left — close projection so it doesn't cover the laptop screen.
+        // Close is safer than minimizing because the guard interval would restore it.
+        try {
+          projectionWindow.setAlwaysOnTop(false);
+          projectionWindow.setFullScreen(false);
+          projectionWindow.minimize();
+          // Give a moment for fullscreen to exit, then close
+          setTimeout(() => {
+            if (projectionWindow && !projectionWindow.isDestroyed()) {
+              projectionWindow.close();
+            }
+          }, 400);
+        } catch(e) {
+          try { projectionWindow.close(); } catch(_) {}
+        }
+        // Bring main window to front now that projection is closing
         setTimeout(() => {
           try {
-            if (projectionWindow && !projectionWindow.isDestroyed()) {
-              projectionWindow.setBounds({ x: -4, y: -4, width: 2, height: 2 });
-              projectionWindow.hide();
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.setAlwaysOnTop(true);
+              mainWindow.show();
+              mainWindow.focus();
+              mainWindow.restore();
+              setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false);
+              }, 600);
             }
           } catch(e) {}
-        }, 400);
-      } catch(e) {}
-
-      mainWindow?.webContents.send('display-warning', {
-        msg: 'Projector disconnected — waiting for reconnect…',
-        level: 'warn'
-      });
+        }, 450);
+        mainWindow?.webContents.send('display-warning', {
+          msg: 'External display disconnected — projection closed. Reconnect the display and press Project Live again.',
+          level: 'error'
+        });
+      }
     });
 
     screen.on('display-added', (_evt, newDisplay) => {
       if (!projectionWindow || projectionWindow.isDestroyed()) return;
-      if (!projectionWindow._waitingForDisplay) return;
-      // Ignore the primary/laptop screen appearing
+      if (!projectionWindow._lostTargetDisplay) return;
       if (newDisplay.id === screen.getPrimaryDisplay().id) return;
-
-      projectionWindow._waitingForDisplay = false;
+      projectionWindow._lostTargetDisplay = false;
+      const b = newDisplay.bounds;
       projectionWindow._targetDisplayId = newDisplay.id;
       projectionWindow._displayScaleFactor = newDisplay.scaleFactor || 1;
-      projectionWindow._displayWidth  = newDisplay.bounds.width;
-      projectionWindow._displayHeight = newDisplay.bounds.height;
-
-      // Step 1: move to new display and show
-      setTimeout(() => {
-        try {
-          if (!projectionWindow || projectionWindow.isDestroyed()) return;
-          const b = newDisplay.bounds;
-          projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
-          projectionWindow.show();
-          if (process.platform === 'win32') {
-            projectionWindow.setAlwaysOnTop(true, 'screen-saver');
-          } else {
-            projectionWindow.setAlwaysOnTop(true);
-          }
-          projectionWindow.setFullScreen(true);
-        } catch(e) {}
-      }, 600);
-
-      // Step 2: restore content after fullscreen settles
-      setTimeout(() => {
-        try {
-          if (!projectionWindow || projectionWindow.isDestroyed()) return;
-          projectionWindowReadySync();
-          mainWindow?.webContents.send('projection-display-restored');
-        } catch(e) {}
-        // Resume guard
-        _projGuardPaused = false;
-        _hdmiPaused = false;
-      }, 1400);
-
-      mainWindow?.webContents.send('display-warning', {
-        msg: 'Projector reconnected — content restored.',
-        level: 'info'
-      });
+      projectionWindow._displayWidth = b.width;
+      projectionWindow._displayHeight = b.height;
+      projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+      projectionWindow.setFullScreen(true);
     });
   }
 
   projectionWindow.on('closed',()=>{
-    if (_projGuardInterval) { clearInterval(_projGuardInterval); _projGuardInterval = null; }
     projectionWindow=null;
-    // Clear live state when projection closes
     currentLiveVerse=null;
     currentBackgroundMedia=null;
     buildRenderState('clear', null, { backgroundMedia: null });
@@ -1996,142 +1950,84 @@ ipcMain.on('presentation-add-to-schedule', (_evt, payload) => {
   mainWindow?.webContents.send('presentation-add-to-schedule', payload || {});
 });
 
+// ── Menu ──────────────────────────────────────────────────────────────────────
 // ── Auto-updater ──────────────────────────────────────────────────────────────
+const GITHUB_OWNER = 'anchorcastapp-team';
+const GITHUB_REPO  = 'anchorcastapp';
 let _manualUpdateCheck = false;
 
-function checkForUpdatesManual() {
-  if (!app.isPackaged) {
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Check for Updates',
-      message: 'Update checks are only available in the packaged app.',
-      detail: 'Run a production build to test auto-updates.',
-      buttons: ['OK'],
-    });
-    return;
-  }
+async function checkForUpdatesMac(isManual = false) {
+  const arch    = process.arch;
+  const channel = arch === 'arm64' ? 'latest-arm64-mac' : 'latest-x64-mac'; // electron-builder appends -mac to channel name
+  const ymlUrl  = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/${channel}.yml`;
+  if (isManual) mainWindow?.webContents.send('update-checking');
   try {
-    const { autoUpdater } = require('electron-updater');
-    _manualUpdateCheck = true;
-    mainWindow?.webContents.send('update-checking');
-    autoUpdater.checkForUpdates().catch(err => {
+    const res = await fetch(ymlUrl, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const versionMatch = text.match(/^version:\s*(.+)$/m);
+    if (!versionMatch) throw new Error('Could not parse version from yml');
+    const latestVersion = versionMatch[1].trim();
+    const currentVersion = app.getVersion();
+    const parseVer = v => v.replace(/^v/, '').split('.').map(Number);
+    const [lMaj, lMin, lPat] = parseVer(latestVersion);
+    const [cMaj, cMin, cPat] = parseVer(currentVersion);
+    const isNewer = lMaj > cMaj || (lMaj === cMaj && lMin > cMin) || (lMaj === cMaj && lMin === cMin && lPat > cPat);
+    if (isNewer) {
+      const dmgName = `AnchorCastUpdate_v${latestVersion}_${arch}.dmg`;
+      const downloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/${dmgName}`;
+      mainWindow?.webContents.send('update-available-mac', { version: latestVersion, downloadUrl });
+    } else if (isManual) {
       _manualUpdateCheck = false;
-      dialog.showMessageBox(mainWindow, {
-        type: 'warning',
-        title: 'Update Check Failed',
-        message: 'Could not check for updates.',
-        detail: `Please check your internet connection and try again.\n\n${err.message}`,
-        buttons: ['OK'],
-      });
-    });
-  } catch(e) {
-    _manualUpdateCheck = false;
-    console.warn('[Updater] Manual check failed:', e.message);
+      dialog.showMessageBox(mainWindow, { type:'info', title:'AnchorCast is up to date', message:`You're running the latest version.`, detail:`AnchorCast v${currentVersion} is the latest version available.`, buttons:['OK'] });
+    }
+  } catch(err) {
+    console.warn('[Updater] Mac check failed:', err.message);
+    if (isManual) { _manualUpdateCheck = false; dialog.showMessageBox(mainWindow, { type:'warning', title:'Update Check Failed', message:'Could not check for updates.', detail:`Please check your internet connection.\n\n${err.message}`, buttons:['OK'] }); }
   }
 }
-function initAutoUpdater() {
-  if (!app.isPackaged) return; // only run in production builds
+
+function initWindowsUpdater() {
   try {
     const { autoUpdater } = require('electron-updater');
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.channel = 'latest';
+    autoUpdater.on('update-available', (info) => { mainWindow?.webContents.send('update-available', { version: info.version }); });
+    autoUpdater.on('update-not-available', () => { if (_manualUpdateCheck) { _manualUpdateCheck = false; dialog.showMessageBox(mainWindow, { type:'info', title:'AnchorCast is up to date', message:`You're running the latest version.`, detail:`AnchorCast v${app.getVersion()} is the latest version available.`, buttons:['OK'] }); } });
+    autoUpdater.on('download-progress', (p) => { mainWindow?.webContents.send('update-download-progress', { percent: Math.round(p.percent) }); });
+    autoUpdater.on('update-downloaded', (info) => { mainWindow?.webContents.send('update-downloaded', { version: info.version }); });
+    autoUpdater.on('error', (err) => console.warn('[Updater]', err.message));
+    setTimeout(() => autoUpdater.checkForUpdates().catch(e => console.warn('[Updater]', e.message)), 5000);
+    setInterval(() => autoUpdater.checkForUpdates().catch(e => console.warn('[Updater]', e.message)), 6 * 60 * 60 * 1000);
+    ipcMain.handle('updater-download-now', () => autoUpdater.downloadUpdate().catch(e => ({ error: e.message })));
+    ipcMain.handle('updater-install-now', () => autoUpdater.quitAndInstall(false, true));
+    ipcMain.handle('updater-check-now', () => autoUpdater.checkForUpdates().catch(e => ({ error: e.message })));
+  } catch(e) { console.warn('[Updater] Could not init:', e.message); }
+}
 
-    // Smart channel detection:
-    // - Full build (has bundled model in Resources): use light channel for updates
-    //   because the model already exists in userData and doesn't need re-bundling
-    // - Light build: use light channel (model either not downloaded or in userData)
-    // Result: ALL users after first install use the light update channel
-    // which contains Python but no model — small update, model persists in userData
-    const bundledModelsPath = path.join(process.resourcesPath, 'models');
-    const hasBundledModel = fs.existsSync(bundledModelsPath) &&
-      fs.readdirSync(bundledModelsPath).some(f => f.startsWith('models--Systran'));
-    const isMac = process.platform === 'darwin';
+function checkForUpdatesManual() {
+  if (!app.isPackaged) { dialog.showMessageBox(mainWindow, { type:'info', title:'Check for Updates', message:'Update checks are only available in the packaged app.', buttons:['OK'] }); return; }
+  _manualUpdateCheck = true;
+  if (process.platform === 'darwin') { checkForUpdatesMac(true); return; }
+  try {
+    const { autoUpdater } = require('electron-updater');
+    mainWindow?.webContents.send('update-checking');
+    autoUpdater.checkForUpdates().catch(err => { _manualUpdateCheck = false; dialog.showMessageBox(mainWindow, { type:'warning', title:'Update Check Failed', message:'Could not check for updates.', detail:`${err.message}`, buttons:['OK'] }); });
+  } catch(e) { _manualUpdateCheck = false; }
+}
 
-    if (hasBundledModel) {
-      // First run of full version — write flag to userData so we know model exists
-      const modelFlag = path.join(DATA_DIR, 'whisper_model_installed.flag');
-      try { if (!fs.existsSync(modelFlag)) fs.writeFileSync(modelFlag, 'full', 'utf8'); } catch(_) {}
-    }
-
-    // Check if user has ever had the full version (model flag exists in userData)
-    const modelFlag = path.join(DATA_DIR, 'whisper_model_installed.flag');
-    const hasModelFlag = fs.existsSync(modelFlag);
-
-    // Set channel based on platform and architecture
-    const arch = process.arch; // 'arm64' or 'x64'
-    if (isMac) {
-      autoUpdater.channel = arch === 'arm64' ? 'latest-mac-arm64' : 'latest-mac-x64';
-    } else {
-      autoUpdater.channel = 'latest';
-    }
-    console.log(`[Updater] Channel: ${autoUpdater.channel} | arch: ${arch}`);
-
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
-
-    autoUpdater.on('checking-for-update', () => {
-      console.log('[Updater] Checking for updates…');
-    });
-
-    autoUpdater.on('update-available', (info) => {
-      console.log(`[Updater] Update available: v${info.version}`);
-      mainWindow?.webContents.send('update-available', {
-        version: info.version,
-        releaseNotes: info.releaseNotes || '',
-      });
-    });
-
-    autoUpdater.on('update-not-available', () => {
-      console.log('[Updater] App is up to date');
-      // Only show dialog if triggered by manual check
-      if (_manualUpdateCheck) {
-        _manualUpdateCheck = false;
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          title: 'AnchorCast is up to date',
-          message: `You're running the latest version.`,
-          detail: `AnchorCast v${app.getVersion()} is the latest version available.`,
-          buttons: ['OK'],
-        });
-      }
-    });
-
-    autoUpdater.on('download-progress', (progress) => {
-      const pct = Math.round(progress.percent);
-      mainWindow?.webContents.send('update-download-progress', { percent: pct });
-    });
-
-    autoUpdater.on('update-downloaded', (info) => {
-      console.log(`[Updater] Update downloaded: v${info.version}`);
-      mainWindow?.webContents.send('update-downloaded', {
-        version: info.version,
-      });
-    });
-
-    autoUpdater.on('error', (err) => {
-      console.warn('[Updater] Error:', err.message);
-    });
-
-    // Check for updates 5 seconds after app starts, then every 6 hours
-    setTimeout(() => {
-      autoUpdater.checkForUpdates().catch(e => console.warn('[Updater]', e.message));
-    }, 5000);
-    setInterval(() => {
-      autoUpdater.checkForUpdates().catch(e => console.warn('[Updater]', e.message));
-    }, 6 * 60 * 60 * 1000);
-
-    // IPC handlers
-    ipcMain.handle('updater-install-now', () => {
-      autoUpdater.quitAndInstall(false, true);
-    });
-    ipcMain.handle('updater-check-now', () => {
-      return autoUpdater.checkForUpdates().catch(e => ({ error: e.message }));
-    });
-
-  } catch(e) {
-    console.warn('[Updater] Could not init:', e.message);
+function initAutoUpdater() {
+  if (!app.isPackaged) return;
+  if (process.platform === 'darwin') {
+    setTimeout(() => checkForUpdatesMac(false), 5000);
+    setInterval(() => checkForUpdatesMac(false), 6 * 60 * 60 * 1000);
+  } else {
+    initWindowsUpdater();
   }
 }
+
 function buildMenu(){
-  const isMac = process.platform === 'darwin';
   const t=[
     // ── File ──────────────────────────────────────────────────────────────
     {label:'File',submenu:[
@@ -2161,22 +2057,6 @@ function buildMenu(){
       {type:'separator'},
       {label:'Exit',accelerator:'Alt+F4',role:'quit'},
     ]},
-    // ── Edit — required on Mac for Cmd+C/V/X/A/Z to work in text inputs ──
-    {label:'Edit',submenu:[
-      {role:'undo'},
-      {role:'redo'},
-      {type:'separator'},
-      {role:'cut'},
-      {role:'copy'},
-      {role:'paste'},
-      {role:'pasteAndMatchStyle'},
-      {role:'delete'},
-      {role:'selectAll'},
-      ...(isMac ? [
-        {type:'separator'},
-        {label:'Speech',submenu:[{role:'startSpeaking'},{role:'stopSpeaking'}]},
-      ] : []),
-    ]},
     // ── Settings ──────────────────────────────────────────────────────────
     {label:'Settings',submenu:[
       {label:'Preferences…',accelerator:'CmdOrCtrl+,',click:()=>createSettingsWindow()},
@@ -2196,8 +2076,7 @@ function buildMenu(){
     ]},
     // ── Display ───────────────────────────────────────────────────────────
     {label:'Display',submenu:[
-      // Cmd+P freed for Paste — use Cmd+Shift+P for projection
-      {label:'Open Projection',accelerator:'CmdOrCtrl+Shift+P',click:()=>{
+      {label:'Open Projection',accelerator:'CmdOrCtrl+P',click:()=>{
         createProjectionWindow(screen.getAllDisplays()[0].id);
       }},
       {label:'Close Projection',click:()=>{if(projectionWindow)projectionWindow.close();}},
@@ -2210,6 +2089,9 @@ function buildMenu(){
     // ── View ──────────────────────────────────────────────────────────────
     {label:'View',submenu:[
       {role:'togglefullscreen'},
+      {type:'separator'},
+      {label:'Developer Tools', accelerator: process.platform==='darwin'?'Cmd+Option+I':'Ctrl+Shift+I', click:()=>{ BrowserWindow.getFocusedWindow()?.webContents.toggleDevTools(); }},
+      {role:'reload'},
       {type:'separator'},
       {label:'Operator Command Center',accelerator:'CmdOrCtrl+Shift+O',click:()=>mainWindow?.webContents.send('menu-show-occ')},
       ...(isDev?[{role:'reload'},{role:'toggleDevTools'}]:[]),
@@ -2227,6 +2109,7 @@ function buildMenu(){
     ]},
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(t));
+  // Recent schedules are populated inline via _getRecentScheduleItems() above
 }
 
 function _getRecentScheduleItems(){
@@ -2318,7 +2201,7 @@ const remoteAuthState = { failures: new Map() };
 const remoteRuntimeStatus = { lastSeenAt: 0, lastRole: null, lastIp: null };
 
 const remoteSessionTokens = new Map();
-function mintRemoteSessionToken(role='admin', ttlMs=(4*60*60*1000)){ // 4h session
+function mintRemoteSessionToken(role='admin', ttlMs=(8*60*60*1000)){
   const token = crypto.randomBytes(24).toString('hex');
   const expiresAt = Date.now() + ttlMs;
   remoteSessionTokens.set(token, { role, expiresAt });
@@ -2460,6 +2343,42 @@ function clearRemoteAuthFailures(req){
 function normalizeRemotePinValue(v){
   return String(v || '').replace(/\D/g,'').slice(0,8);
 }
+
+// ── F6: PBKDF2 PIN hashing ────────────────────────────────────────────────────
+function hashPin(pin) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 100000;
+  const hash = crypto.pbkdf2Sync(String(pin), salt, iterations, 32, 'sha256').toString('hex');
+  return `pbkdf2:sha256:${iterations}:${salt}:${hash}`;
+}
+function isPinHashed(v) {
+  return typeof v === 'string' && v.startsWith('pbkdf2:');
+}
+function verifyPin(inputPin, storedValue) {
+  if (!storedValue || !inputPin) return false;
+  if (isPinHashed(storedValue)) {
+    try {
+      const [, , iterStr, salt, storedHash] = storedValue.split(':');
+      const iterations = parseInt(iterStr, 10);
+      const hash = crypto.pbkdf2Sync(String(inputPin), salt, iterations, 32, 'sha256');
+      const stored = Buffer.from(storedHash, 'hex');
+      if (hash.length !== stored.length) return false;
+      return crypto.timingSafeEqual(hash, stored);
+    } catch(_) { return false; }
+  }
+  return normalizeRemotePinValue(inputPin) === normalizeRemotePinValue(storedValue);
+}
+function hashAllPins(settings) {
+  const PIN_KEYS = ['remotePin','remoteAdminPin','remoteScripturePin','remoteSongsPin','remoteMediaPin','remoteMonitorPin'];
+  for (const k of PIN_KEYS) {
+    const v = settings[k];
+    if (v && !isPinHashed(v)) {
+      const normalized = normalizeRemotePinValue(v);
+      if (normalized) settings[k] = hashPin(normalized);
+    }
+  }
+  return settings;
+}
 function isRemoteAuthRequired(v){
   if (v === false || v === 0) return false;
   const s = String(v ?? '').trim().toLowerCase();
@@ -2479,16 +2398,12 @@ function roleCapabilities(role){
 function remoteRoleForPin(pin){
   const p = normalizeRemotePinValue(pin);
   if(!p) return null;
-  const adminPin = normalizeRemotePinValue(currentSettings.remoteAdminPin || currentSettings.remotePin || '');
-  const scripturePin = normalizeRemotePinValue(currentSettings.remoteScripturePin || '');
-  const songsPin = normalizeRemotePinValue(currentSettings.remoteSongsPin || '');
-  const mediaPin = normalizeRemotePinValue(currentSettings.remoteMediaPin || '');
-  const monitorPin = normalizeRemotePinValue(currentSettings.remoteMonitorPin || '');
-  if(adminPin && p === adminPin) return 'admin';
-  if(scripturePin && p === scripturePin) return 'scripture';
-  if(songsPin && p === songsPin) return 'songs';
-  if(mediaPin && p === mediaPin) return 'media';
-  if(monitorPin && p === monitorPin) return 'monitor';
+  const check = (stored) => stored && verifyPin(p, stored);
+  if(check(currentSettings.remoteAdminPin || currentSettings.remotePin)) return 'admin';
+  if(check(currentSettings.remoteScripturePin)) return 'scripture';
+  if(check(currentSettings.remoteSongsPin)) return 'songs';
+  if(check(currentSettings.remoteMediaPin)) return 'media';
+  if(check(currentSettings.remoteMonitorPin)) return 'monitor';
   return null;
 }
 
@@ -2508,27 +2423,18 @@ function getAuthorizedRemoteRole(req){
   // Auth required check — if auth is disabled, allow unauthenticated access
   // IMPORTANT: only skip auth when remoteRequireAuth is explicitly false AND
   // no admin PIN is configured (prevents bypass when PIN is set but field is missing)
-  // Re-evaluate auth requirement live from settings (never cache this)
-  const rawAuthSetting = currentSettings.remoteRequireAuth;
-  const authRequired = isRemoteAuthRequired(rawAuthSetting);
+  const authRequired = isRemoteAuthRequired(currentSettings.remoteRequireAuth);
   const hasAnyPin = !!(normalizeRemotePinValue(currentSettings.remoteAdminPin || currentSettings.remotePin || ''));
-
-  // SECURITY: if a PIN is configured, ALWAYS require it regardless of remoteRequireAuth flag
-  // This prevents the case where the UI toggle is off but a PIN is set — PIN always wins
-  if (hasAnyPin && !getAuthorizedRemoteRole._bypassPinCheck) {
-    const role = remoteRoleForPin(getRemoteAuthHeader(req) || getRemotePinFromUrl(req.url || ''));
-    if (role) { markRemoteActivity(req, role); return role; }
-    // Has PIN configured but none provided / wrong one → deny
-    // (even if remoteRequireAuth flag is false — PIN presence overrides)
-    const tokenRole = remoteRoleForToken(getRemoteTokenFromReq(req));
-    if (tokenRole) { markRemoteActivity(req, tokenRole); return tokenRole; }
-    return null;
-  }
-
   if (!authRequired && !hasAnyPin) {
     // Truly open — allow role from header/query (no PIN configured)
-    // NOTE: X-Remote-Role header is intentionally NOT trusted as auth here.
-    // It is sent by the remote HTML for UI hints only. Only PIN or session token grants access.
+    try {
+      const roleFromHeader = String(req.headers['x-remote-role'] || '').trim().toLowerCase();
+      if (['admin','scripture','songs','media','monitor'].includes(roleFromHeader)) { markRemoteActivity(req, roleFromHeader); return roleFromHeader; }
+    } catch(_) {}
+    try {
+      const roleFromQuery = String(new URL(req.url || '/', 'http://localhost').searchParams.get('role') || '').trim().toLowerCase();
+      if (['admin','scripture','songs','media','monitor'].includes(roleFromQuery)) { markRemoteActivity(req, roleFromQuery); return roleFromQuery; }
+    } catch(_) {}
     markRemoteActivity(req, 'admin');
     return 'admin';
   }
@@ -2596,6 +2502,16 @@ function startHttpServer(port){
     res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma','no-cache');
     res.setHeader('Expires','0');
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self' http://127.0.0.1:* http://localhost:*",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: http://127.0.0.1:* https:",
+      "media-src 'self' blob: data: http://127.0.0.1:* file:",
+      "connect-src 'self' http://127.0.0.1:* https://api.deepgram.com wss://api.deepgram.com wss://*.deepgram.com https://api.openai.com https://api.anthropic.com https://lrclib.net https://api.genius.com https://genius.com",
+      "worker-src 'self' blob:",
+    ].join('; '));
     if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
     const url=req.url.split('?')[0];
     if(req.method==='GET'){
@@ -2624,16 +2540,14 @@ function startHttpServer(port){
           });
         } catch (e) {
           console.error('[REMOTE] bootstrap failed', e);
-          // SECURITY: never grant role on error — require re-auth
-          const authReqOnError = isRemoteAuthRequired(currentSettings.remoteRequireAuth);
-          return json(res, authReqOnError ? 500 : 200, {
-            ok: !authReqOnError,
-            authRequired: authReqOnError,
-            role: authReqOnError ? null : 'admin',
-            capabilities: authReqOnError ? [] : roleCapabilities('admin'),
-            live: false,
-            projection: false,
-            version: 'r54-fallback',
+          return json(res,200,{
+            ok:true,
+            authRequired:isRemoteAuthRequired(currentSettings.remoteRequireAuth),
+            role:'admin',
+            capabilities: roleCapabilities('admin'),
+            live: !!(currentRenderState?.module && currentRenderState.module !== 'clear'),
+            projection: projectionWindow!==null,
+            version: 'r52-fallback',
             error: e?.message || String(e)
           });
         }
@@ -2696,11 +2610,11 @@ function startHttpServer(port){
     if(req.method==='POST'&&url==='/api/control'){
       if(remoteLockedOut(req)) return json(res,429,{error:'Too many failed attempts. Try again later.'});
       let role = getAuthorizedRemoteRole(req);
-      // Only fall back to admin when auth is genuinely not required AND no PIN configured
+      // When auth is not required, always fall back to 'admin' — same logic as /api/bootstrap
       if(!role && !isRemoteAuthRequired(currentSettings.remoteRequireAuth)) role = 'admin';
       if(!role){
         recordRemoteAuthFailure(req);
-        return json(res,401,{error:'Authentication required. Please enter your PIN in the remote control interface.',authRequired:true});
+        return json(res,401,{error:'Authentication required'});
       }
       clearRemoteAuthFailures(req);
       let body='';
@@ -2735,13 +2649,6 @@ function startHttpServer(port){
         } catch(e){ json(res,400,{error:'Invalid JSON'}); }
       });
       return;
-    }
-    if(req.method==='POST'&&url==='/api/signout'){
-      // Revoke the session token (sent as X-Remote-Token by the remote client)
-      const tok = String(req.headers['x-remote-token']||'').trim();
-      if(tok) remoteSessionTokens.delete(tok);
-      clearRemoteAuthFailures(req); // also clear any lockout on sign-out
-      return json(res,200,{success:true});
     }
     json(res,404,{error:'Not found'});
   });
@@ -3067,9 +2974,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 #toast.show{opacity:1;transform:translateY(0)}
 .hidden{display:none}
 #authMsg{font-size:10px;color:var(--live);margin-top:7px}
-.signout-btn{background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.28);border-radius:var(--r-xs);color:#ff7b6b;font-size:10px;font-weight:700;padding:5px 9px;cursor:pointer;letter-spacing:.04em;display:none;font-family:inherit}
-.signout-btn.show{display:block}
-.signout-btn:active{opacity:.7}
 @media(orientation:landscape) and (max-height:500px){
   body{max-width:100%;padding-bottom:72px}
   .hdr{padding:8px 14px 6px}
@@ -3110,7 +3014,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <div class="onair" id="onairBadge"><div class="onair-dot"></div>ON AIR</div>
-    <button id="signOutBtn" class="signout-btn" onclick="signOut()" title="Sign out">SIGN OUT</button>
     <button id="homeBtn" onclick="window.location.href='/'" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-xs);color:var(--text-dim);font-size:16px;padding:6px 10px;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Back to main app">🏠</button>
   </div>
 </div>
@@ -3292,10 +3195,18 @@ function xhr(method,url,body,cb){
 function cmd(action,data,okMsg){
   xhr('POST','/api/control',{action:action,data:data||null},function(status,resp){
     if(status>=200&&status<300){if(okMsg)toast(okMsg);setTimeout(poll,300);}
-    else if(status===401)toast('Not authorised',true);
-    else if(status===403)toast('Role not permitted',true);
-    else if(status===0)toast('Connection error',true);
-    else toast('Error '+status,true);
+    else if(status===401||resp.authRequired){
+      token='';try{sessionStorage.removeItem('acToken');}catch(e){}
+      setStatus('\uD83D\uDD12 PIN Required','Enter your PIN to continue','\uD83D\uDD10');
+      show($('authBox'),true);
+    }
+    else if(status===429){
+      toast('Too many attempts \u2014 please wait a moment',true);
+      setStatus('\u23F3 Locked out','Too many failed attempts','\u26A0');
+    }
+    else if(status===403)toast('Your role does not have permission for this action',true);
+    else if(status===0)toast('Connection error \u2014 check your Wi-Fi',true);
+    else toast('Something went wrong. Please try again.',true);
   });
 }
 
@@ -3321,23 +3232,6 @@ function doNav(dir){
 function goLive(){
   cmd('present-current',{mode:activeMode},'\u2713 Sent to projection');
 }
-
-function signOut(){
-  // Revoke server-side session first, then clear local state
-  xhr('POST','/api/signout',{},function(){
-    token='';pin='';role='admin';caps=[];
-    try{localStorage.removeItem('acToken');}catch(e){}
-    try{localStorage.removeItem('acPin');}catch(e){}
-    try{localStorage.removeItem('acRole');}catch(e){}
-    var sb=$('signOutBtn');if(sb)sb.className='signout-btn';
-    var rb=$('roleBadge');if(rb){rb.className='role-badge';rb.textContent='';}
-    var em=$('authMsg');if(em)em.textContent='';
-    var pi=$('pinInput');if(pi)pi.value='';
-    var ab=$('authBox');if(ab)ab.style.display='';
-    setStatus('Signed out','Enter PIN to continue','\uD83D\uDD10');
-  });
-}
-window.signOut=signOut;
 
 function sendRef(){
   var v=($('refInput')||{}).value||'';v=v.trim();
@@ -3384,11 +3278,13 @@ function refreshUI(){
 function poll(){
   xhr('GET','/api/status',null,function(status,data){
     if(status!==200){
-      if(status===401){
-        setStatus('\uD83D\uDD12 Locked','Enter PIN','\uD83D\uDD10');
-        // Clear stale token so subsequent polls don't keep triggering auth failures
-        if(token){token='';try{localStorage.removeItem('acToken');}catch(e){}}
-        var _ab=$('authBox');if(_ab)_ab.style.display='';
+      if(status===401||data.authRequired){
+        setStatus('\uD83D\uDD12 PIN Required','Enter your PIN to continue','\uD83D\uDD10');
+        if(token){token='';try{sessionStorage.removeItem('acToken');}catch(e){}}
+        show($('authBox'),true);
+      }
+      else if(status===429){
+        setStatus('\u23F3 Locked out','Too many failed attempts \u2014 wait a moment','\u26A0');
       }
       else setStatus('No connection','Check WiFi','\u26A0');
       return;
@@ -3547,43 +3443,33 @@ function renderMedia(items){
 
 function bootstrap(){
   xhr('GET','/api/bootstrap',null,function(status,data){
-    if(status===401||status===0){
-      if(AUTH_REQUIRED){var _ab=$('authBox');if(_ab)_ab.style.display='';}
-      setStatus(status===0?'Cannot reach AnchorCast':'Locked','Check WiFi or enter PIN','\u26A0');
-      // Clear stale token — server may have restarted and token is no longer valid.
-      // If we keep sending it, every background poll records an auth failure → 429.
-      if(status===401){
-        token='';
-        try{localStorage.removeItem('acToken');}catch(e){}
-        var sb=$('signOutBtn');if(sb)sb.className='signout-btn';
-      }
+    if(status===429){
+      setStatus('\u23F3 Locked out','Too many failed attempts \u2014 please wait a moment','\u26A0');
+      token='';try{sessionStorage.removeItem('acToken');}catch(e){}
       return;
     }
-    // If server says auth is required but returned no role, force re-auth
-    if(data.authRequired && !data.role){
-      token='';pin='';role='';caps=[];
-      try{localStorage.removeItem('acToken');localStorage.removeItem('acPin');localStorage.removeItem('acRole');}catch(e){}
-      var _ab=$('authBox');if(_ab)_ab.style.display='';
-      var em=$('authMsg');if(em)em.textContent='';
+    if(status===401||status===0){
+      if(AUTH_REQUIRED||status===401)show($('authBox'),true);
+      setStatus(status===0?'Cannot reach AnchorCast':'\uD83D\uDD12 PIN Required',
+                status===0?'Check your Wi-Fi connection':'Enter your PIN to continue',
+                status===0?'\u26A0':'\uD83D\uDD10');
+      if(status===401){
+        token='';try{sessionStorage.removeItem('acToken');}catch(e){}
+      }
       return;
     }
     role=String(data.role||'admin').toLowerCase();
     caps=data.capabilities||capsFor(role);
-    // Hide auth box on any successful bootstrap — token is valid regardless of authRequired flag
-    {var _ab=$('authBox');if(_ab)_ab.style.display='none';}
+    if(!AUTH_REQUIRED||!data.authRequired)show($('authBox'),false);
     var rb=$('roleBadge');if(rb){rb.className='role-badge show';rb.textContent='\uD83D\uDC64 '+role.charAt(0).toUpperCase()+role.slice(1);}
-    // Show sign-out button now that user is authenticated
-    if(AUTH_REQUIRED){var sb=$('signOutBtn');if(sb)sb.className='signout-btn show';}
     refreshUI();loadLib('songs');loadLib('media');poll();
   });
 }
 
 window.addEventListener('load',function(){
-  try{token=localStorage.getItem('acToken')||'';}catch(e){}
-  try{pin=localStorage.getItem('acPin')||'';}catch(e){}
-  // Always start with auth box visible — bootstrap() will hide it if auth passes
-  // This prevents stale tokens from bypassing the PIN screen on fresh open
-  try{var r=localStorage.getItem('acRole');if(r&&(token||pin)){role=r;caps=capsFor(role);}}catch(e){}
+  try{token=sessionStorage.getItem('acToken')||'';}catch(e){}
+  try{pin=sessionStorage.getItem('acPin')||'';}catch(e){}
+  try{var r=sessionStorage.getItem('acRole');if(r){role=r;caps=capsFor(role);}}catch(e){}
 
   $('modeScripture').onclick=function(){setMode('scripture');};
   $('modeSongs').onclick=function(){setMode('songs');};
@@ -3611,9 +3497,8 @@ window.addEventListener('load',function(){
     xhr('POST','/api/auth',{pin:p},function(status,data){
       if(status===200){
         token=data.token||'';pin=p;role=String(data.role||'admin').toLowerCase();caps=data.capabilities||capsFor(role);
-        try{localStorage.setItem('acToken',token);localStorage.setItem('acPin',pin);localStorage.setItem('acRole',role);}catch(e){}
-        var sb=$('signOutBtn');if(sb)sb.className='signout-btn show';
-        var _ab=$('authBox');if(_ab)_ab.style.display='none';bootstrap();
+        try{sessionStorage.setItem('acToken',token);sessionStorage.setItem('acPin',pin);sessionStorage.setItem('acRole',role);}catch(e){}
+        show($('authBox'),false);bootstrap();
       }else{var m=$('authMsg');if(m)m.textContent='Wrong PIN — try again';}
     });
   };
@@ -3856,7 +3741,7 @@ function buildRegistrationStatusHtml(reg) {
       </div>
       <div class="btn-row">
         <button class="btn-paypal"
-          onclick="window.electronAPI?.openExternal('https://paypal.me/nkofodile')">
+          onclick="window.electronAPI?.openExternal('https://paypal.me/rommeltechdev')">
           <span style="font-size:16px">💳</span> Donate via PayPal
         </button>
         <button class="btn-github"
@@ -3941,6 +3826,7 @@ function saveSettings(s){
   if(!s.remoteMediaPin) s.remoteMediaPin = String(Math.floor(100000 + Math.random()*900000));
   if(!s.remoteMonitorPin) s.remoteMonitorPin = String(Math.floor(100000 + Math.random()*900000));
   s.remotePin = s.remoteAdminPin;
+  hashAllPins(s); // F6: hash PINs before writing to disk
   const prevNdi     = currentSettings.ndiEnabled;
   const prevAdapter = currentSettings.networkAdapter;
   const prevModel   = currentSettings.whisperModel;
@@ -4382,18 +4268,6 @@ ipcMain.handle('get-displays',()=>
 ipcMain.handle('get-settings',()=>({ ...defaultSettings(), ...loadSettings() }));
 ipcMain.handle('save-settings',(_,s,opts)=>{
   try{
-    // If PIN or auth settings changed, invalidate all existing remote sessions
-    const pinChanged = (
-      String(s.remoteAdminPin||'') !== String(currentSettings.remoteAdminPin||'') ||
-      String(s.remoteScripturePin||'') !== String(currentSettings.remoteScripturePin||'') ||
-      String(s.remoteSongsPin||'') !== String(currentSettings.remoteSongsPin||'') ||
-      String(s.remoteMediaPin||'') !== String(currentSettings.remoteMediaPin||'') ||
-      String(s.remoteRequireAuth||'') !== String(currentSettings.remoteRequireAuth||'')
-    );
-    if (pinChanged) {
-      remoteSessionTokens.clear();
-      console.log('[Remote] PIN/auth settings changed — all sessions invalidated');
-    }
     saveSettings(s);
     // opts.themeOnly = true means only a song/presentation/scripture theme ID changed.
     // The renderer uses this to skip re-projecting live scripture when a song theme is saved.
@@ -5471,6 +5345,8 @@ ipcMain.handle('open-history',()=>{ createHistoryWindow(); return{success:true};
 // ── Whisper Local Server ──────────────────────────────────────────────────────
 const WHISPER_PORT   = 7777;
 const WHISPER_URL    = `http://127.0.0.1:${WHISPER_PORT}`;
+// F8: Per-run secret — injected into whisper_server.py via --secret arg
+const WHISPER_SECRET = crypto.randomBytes(24).toString('hex');
 function resolveRuntimeResource(...parts) {
   const candidates = [
     path.join(process.resourcesPath || '', ...parts),
@@ -5537,96 +5413,39 @@ async function startWhisperServer(model = 'small.en') {
   }
 
   // ── Find Python ─────────────────────────────────────────────────────────────
-  const bundledPy     = resolveRuntimeResource('python', 'python.exe');        // Windows
-  const bundledPyMac  = resolveRuntimeResource('python', 'bin', 'python3');    // Mac symlink
-  const bundledPyMac312 = resolveRuntimeResource('python', 'bin', 'python3.12'); // Mac real binary
+  const bundledPy    = resolveRuntimeResource('python', 'python.exe'); // Windows bundled
+  const bundledPyMac = resolveRuntimeResource('python', 'bin', 'python3'); // Mac/Linux
 
   // Check cached Python path first (speeds up subsequent startups)
   let cachedPy = null;
   try {
     const cached = fs.readFileSync(WHISPER_CACHE, 'utf-8').trim();
-    // Only use cached path if it points to the bundled python (avoid caching system python)
-    if (cached && fs.existsSync(cached) && cached.includes('python')) cachedPy = cached;
+    if (cached && fs.existsSync(cached)) cachedPy = cached;
   } catch {}
 
-  // Build candidate list — bundled python FIRST so faster_whisper is always found
+  // Build candidate list — cached and bundled first, then system
   const candidates = [
     ...(cachedPy ? [cachedPy] : []),
-    process.platform === 'win32' ? bundledPy : bundledPyMac312, // real binary first
-    process.platform === 'win32' ? bundledPy : bundledPyMac,    // symlink fallback
+    process.platform === 'win32' ? bundledPy : bundledPyMac,
     ...(process.platform === 'win32' ? ['python', 'python3'] : ['python3', 'python']),
-  ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
   const { execFileSync } = require('child_process');
 
-  // On Mac/Linux, pip --user installs to ~/.local — include it in PATH/PYTHONPATH
-  // Also restore shell PATH since Electron packaged apps strip it to /usr/bin:/bin
-  let _shellPath = process.env.PATH || '';
-  if (process.platform === 'darwin') {
-    try {
-      const _sh = process.env.SHELL || '/bin/zsh';
-      const _sr = require('child_process').spawnSync(_sh, ['-l', '-c', 'echo $PATH'], { encoding: 'utf8', timeout: 5000 });
-      if (_sr.status === 0 && _sr.stdout.trim()) _shellPath = _sr.stdout.trim();
-    } catch { /* keep existing PATH */ }
-  }
-  const _pyEnv = process.platform !== 'win32' ? {
-    ...process.env,
-    PATH: [
-      process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
-      '/opt/homebrew/bin',
-      '/opt/homebrew/sbin',
-      '/usr/local/bin',
-      '/usr/bin',
-      '/bin',
-      _shellPath,
-    ].filter(Boolean).join(':'),
-    PYTHONPATH: [
-      // Bundled Python's own site-packages — FIRST so it finds faster_whisper
-      path.join(resolveRuntimeResource('python'), 'lib', 'python3.12', 'site-packages'),
-      path.join(resolveRuntimeResource('python'), 'lib', 'python3.11', 'site-packages'),
-      path.join(resolveRuntimeResource('python'), 'lib', 'python3.10', 'site-packages'),
-      // User site-packages fallback
-      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.14/site-packages` : '',
-      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.13/site-packages` : '',
-      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.12/site-packages` : '',
-      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.11/site-packages` : '',
-      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.10/site-packages` : '',
-      process.env.HOME ? `${process.env.HOME}/.local/lib/python3.9/site-packages` : '',
-      process.env.PYTHONPATH || '',
-    ].filter(Boolean).join(':'),
-    // Also set PYTHONHOME so bundled Python finds its stdlib
-    PYTHONHOME: resolveRuntimeResource('python'),
-  } : process.env;
-
-  // Mac candidates — bundled python FIRST, then system fallbacks
-  const macExtraCandidates = process.platform === 'darwin'
-    ? [
-        bundledPyMac312,
-        bundledPyMac,
-        '/opt/homebrew/bin/python3.12',
-        '/opt/homebrew/bin/python3.13',
-        '/opt/homebrew/bin/python3.14',
-        '/opt/homebrew/bin/python3.11',
-        '/opt/homebrew/bin/python3.10',
-        '/opt/homebrew/bin/python3',
-        '/usr/local/bin/python3',
-        '/usr/bin/python3',
-      ]
-    : [];
-
   let pythonExe = null;
-  for (const candidate of [...candidates, ...macExtraCandidates].filter((v,i,a)=>a.indexOf(v)===i)) {
+  for (const candidate of candidates) {
     try {
       execFileSync(candidate, ['-c',
-        'import sys; v=sys.version_info; exit(0 if v.major==3 and v.minor>=10 else 1)'
-      ], { timeout: 4000, windowsHide: true, env: _pyEnv });
+        'import sys; v=sys.version_info; exit(0 if v.major==3 and 8<=v.minor<=12 else 1)'
+      ], { timeout: 4000, windowsHide: true });
       execFileSync(candidate, ['-c',
         'from faster_whisper import WhisperModel'
-      ], { timeout: 6000, windowsHide: true, env: _pyEnv });
+      ], { timeout: 6000, windowsHide: true });
       pythonExe = candidate;
-      const label = (candidate === bundledPy || candidate === bundledPyMac || candidate === bundledPyMac312)
+      const label = (candidate === bundledPy || candidate === bundledPyMac)
         ? 'bundled' : candidate === cachedPy ? 'cached' : 'system';
       console.log(`[Whisper] Found ${label} Python: ${candidate}`);
+      // Cache for next startup
       try { fs.writeFileSync(WHISPER_CACHE, candidate, 'utf-8'); } catch {}
       break;
     } catch { /* try next */ }
@@ -5635,13 +5454,16 @@ async function startWhisperServer(model = 'small.en') {
   if (!pythonExe) {
     // Diagnose WHY Python wasn't found so we can show the user a specific message
     let whisperFailReason = 'no_python'; // default
-    for (const candidate of [...candidates, ...macExtraCandidates].filter((v,i,a)=>a.indexOf(v)===i)) {
+    for (const candidate of candidates) {
       try {
+        // Can we run it at all?
         execFileSync(candidate, ['--version'], { timeout: 3000, windowsHide: true });
+        // It runs — check version
         try {
           execFileSync(candidate, ['-c',
-            'import sys; v=sys.version_info; exit(0 if v.major==3 and v.minor>=10 else 1)'
-          ], { timeout: 3000, windowsHide: true, env: _pyEnv });
+            'import sys; v=sys.version_info; exit(0 if v.major==3 and 8<=v.minor<=12 else 1)'
+          ], { timeout: 3000, windowsHide: true });
+          // Version OK — faster_whisper must be missing
           whisperFailReason = 'no_faster_whisper';
         } catch {
           // Python exists but wrong version
@@ -5702,33 +5524,17 @@ async function startWhisperServer(model = 'small.en') {
     }
   }
 
-  const whisperEnv = process.platform !== 'win32' ? {
-    ...process.env,
-    PATH: [
-      process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      process.env.PATH || '',
-    ].filter(Boolean).join(':'),
-    PYTHONHOME: resolveRuntimeResource('python'),
-    PYTHONPATH: [
-      path.join(resolveRuntimeResource('python'), 'lib', 'python3.12', 'site-packages'),
-      path.join(resolveRuntimeResource('python'), 'lib', 'python3.11', 'site-packages'),
-      path.join(resolveRuntimeResource('python'), 'lib', 'python3.10', 'site-packages'),
-      process.env.PYTHONPATH || '',
-    ].filter(Boolean).join(':'),
-  } : process.env;
-
   whisperProc = spawn(pythonExe, [
     WHISPER_SCRIPT,
     '--model',           model,
     '--port',            String(WHISPER_PORT),
     '--model_cache_dir', WHISPER_MODEL_DIR,
+    '--secret',          WHISPER_SECRET,
   ], {
     stdio:       ['ignore', 'pipe', 'pipe'],
     detached:    false,
-    windowsHide: true,
-    env:         whisperEnv,
+    windowsHide: true,   // suppress console window on Windows
+    // NO shell:true — we use execFile-style with full path, avoids quoting issues
   });
 
   let _whisperStderr = '';
@@ -5801,20 +5607,18 @@ async function startWhisperServer(model = 'small.en') {
 }
 
 function stopWhisperServer() {
+  whisperReady = false;
   if (whisperProc) {
     const proc = whisperProc;
-    whisperProc  = null;
-    whisperReady = false;
+    whisperProc = null;
     try { proc.kill('SIGTERM'); } catch(_) {}
-    // Force kill after 2s if still running
-    setTimeout(() => {
-      try { proc.kill('SIGKILL'); } catch(_) {}
-    }, 2000);
+    setTimeout(() => { try { proc.kill('SIGKILL'); } catch(_) {} }, 1500);
   }
-  // Also kill any orphaned whisper_server.py processes by name (Mac safety net)
   if (process.platform !== 'win32') {
     try {
-      require('child_process').execSync('pkill -f whisper_server.py 2>/dev/null || true', { timeout: 3000 });
+      const { execSync } = require('child_process');
+      execSync('pkill -f whisper_server.py 2>/dev/null || true', { timeout: 3000 });
+      execSync(`lsof -ti:${WHISPER_PORT} | xargs kill -9 2>/dev/null || true`, { timeout: 3000 });
     } catch(_) {}
   }
 }
@@ -5840,7 +5644,7 @@ ipcMain.handle('whisper-reinforce', async (_, { text, ttl = 30 } = {}) => {
   try {
     const res = await fetch(`${WHISPER_URL}/reinforce`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Whisper-Secret': WHISPER_SECRET },
       body: JSON.stringify({ text: String(text).slice(0, 400), ttl }),
       signal: AbortSignal.timeout(2000),
     });
@@ -5865,21 +5669,12 @@ ipcMain.handle('download-whisper-model', async (_, modelId) => {
   if (!info) return { ok: false, error: 'Unknown model: ' + modelId };
   if (isModelInstalled(modelId)) return { ok: true, already: true };
 
-  // Find Python cross-platform
-  const { execFileSync: _efs2 } = require('child_process');
-  const pyWin = resolveRuntimeResource('python', 'python.exe');
-  const pyMac = resolveRuntimeResource('python', 'bin', 'python3');
-  const systemCandidates = process.platform === 'win32'
-    ? [pyWin, 'python', 'python3']
-    : [pyMac, '/opt/homebrew/bin/python3', '/usr/local/bin/python3', '/usr/bin/python3', 'python3', 'python'];
-  let pythonExe = null;
-  for (const c of systemCandidates) {
-    try { _efs2(c, ['--version'], { timeout: 3000, windowsHide: true }); pythonExe = c; break; } catch { /* try next */ }
-  }
-  if (!pythonExe) return { ok: false, error: 'Python not found. Please install Python 3 to download Whisper models.' };
+  const pythonExe = resolveRuntimeResource('python', 'python.exe');
+  if (!fs.existsSync(pythonExe)) return { ok: false, error: 'Python not found' };
 
   try { fs.mkdirSync(WHISPER_MODEL_DIR, { recursive: true }); } catch(_) {}
 
+  // Download model using Python in background — sends progress via IPC
   const script = `
 import sys
 from faster_whisper import WhisperModel
@@ -5935,194 +5730,18 @@ ipcMain.handle('whisper-diagnostics', () => {
   };
 });
 
-// Trigger whisper setup from within the app
+// Trigger setup_whisper.bat from within the app (e.g. when Python not found at startup)
 ipcMain.handle('run-whisper-setup', async () => {
-  const isWin = process.platform === 'win32';
-  const isMac = process.platform === 'darwin';
+  // Check if bundled Python exists — use it directly instead of setup_whisper.bat
+  const bundledPy = resolveRuntimeResource('python', 'python.exe');
+  const hasBundledPy = fs.existsSync(bundledPy);
 
-  // ── Restore shell PATH on Mac (Electron strips it) ──────────────────────
-  const { execFileSync: _efs, spawnSync: _ss } = require('child_process');
-  let _setupShellPath = process.env.PATH || '';
-  if (isMac) {
-    try {
-      const _sh = process.env.SHELL || '/bin/zsh';
-      const _r = _ss(_sh, ['-l', '-c', 'echo $PATH'], { encoding: 'utf8', timeout: 5000 });
-      if (_r.status === 0 && _r.stdout.trim()) _setupShellPath = _r.stdout.trim();
-    } catch { /* keep existing */ }
-  }
-  const _setupEnv = {
-    ...process.env,
-    PATH: [
-      process.env.HOME ? `${process.env.HOME}/.local/bin` : '',
-      '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin',
-      _setupShellPath,
-    ].filter(Boolean).join(':'),
-  };
-
-  const bundledPyWin = resolveRuntimeResource('python', 'python.exe');
-  const bundledPyMac = resolveRuntimeResource('python', 'bin', 'python3');
-
-  const candidates = isWin
-    ? [bundledPyWin, 'python', 'python3']
-    : [bundledPyMac,
-       '/opt/homebrew/bin/python3.12', // preferred
-       '/opt/homebrew/bin/python3.13',
-       '/opt/homebrew/bin/python3.14',
-       '/opt/homebrew/bin/python3.11',
-       '/opt/homebrew/bin/python3.10',
-       '/opt/homebrew/bin/python3',
-       '/usr/local/bin/python3',
-       '/usr/bin/python3',
-       'python3', 'python'];
-
-  let pythonExe = null;
-  for (const c of candidates) {
-    try {
-      _efs(c, ['--version'], { timeout: 3000, windowsHide: true, env: _setupEnv });
-      pythonExe = c;
-      break;
-    } catch { /* try next */ }
-  }
-
-  if (!pythonExe) {
-    return { ok: false, error: isMac
-      ? 'Python 3 not found. Install it from python.org or via Homebrew: brew install python3'
-      : 'Python not found and setup_whisper.bat missing. Please reinstall AnchorCast.' };
-  }
-
-  // ── Mac / Linux path: pip install faster-whisper then download model ────
-  if (!isWin) {
-    return new Promise((resolve) => {
-      mainWindow?.webContents.send('whisper-model-progress', {
-        modelId: whisperModel || 'small.en',
-        line: 'Installing faster-whisper (this may take a minute)…'
-      });
-
-      // Try pip install strategies in order — Mac may block system pip without --break-system-packages
-      const pipStrategies = [
-        [pythonExe, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'faster-whisper', '--break-system-packages']],
-        [pythonExe, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'faster-whisper', '--user']],
-        [pythonExe, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'faster-whisper']],
-        ['pip3',    ['install', '--quiet', '--upgrade', 'faster-whisper', '--break-system-packages']],
-        ['pip3',    ['install', '--quiet', '--upgrade', 'faster-whisper', '--user']],
-        ['pip3',    ['install', '--quiet', '--upgrade', 'faster-whisper']],
-      ];
-
-      let strategyIdx = 0;
-
-      function tryNextPipStrategy() {
-        if (strategyIdx >= pipStrategies.length) {
-          resolve({ ok: false, error: 'pip install failed on all strategies. Open Terminal and run: pip3 install faster-whisper --break-system-packages' });
-          return;
-        }
-        const [bin, args] = pipStrategies[strategyIdx++];
-        console.log(`[Whisper] pip strategy ${strategyIdx}: ${bin} ${args.join(' ')}`);
-
-        let pip;
-        try {
-          pip = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-        } catch(e) {
-          tryNextPipStrategy();
-          return;
-        }
-
-        let stderr = '';
-        pip.stdout.on('data', d => {
-          mainWindow?.webContents.send('whisper-model-progress', {
-            modelId: whisperModel || 'small.en', line: String(d).trim()
-          });
-        });
-        pip.stderr.on('data', d => {
-          stderr += String(d);
-          const line = String(d).trim();
-          if (line && !line.startsWith('WARNING') && !line.includes('already satisfied')) {
-            mainWindow?.webContents.send('whisper-model-progress', {
-              modelId: whisperModel || 'small.en', line
-            });
-          }
-        });
-        pip.on('error', () => tryNextPipStrategy());
-        pip.on('exit', (pipCode) => {
-          if (pipCode !== 0) {
-            tryNextPipStrategy();
-            return;
-          }
-
-          // pip succeeded — now download the model
-          const modelDir = WHISPER_MODEL_DIR;
-          try { fs.mkdirSync(modelDir, { recursive: true }); } catch(_) {}
-
-          const scriptPath = path.join(app.getPath('temp'), 'ac_get_model.py');
-          const script = [
-            "import os, warnings, logging, sys",
-            "os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'",
-            "os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'",
-            "warnings.filterwarnings('ignore')",
-            "logging.disable(logging.CRITICAL)",
-            "from faster_whisper import WhisperModel",
-            `d = '${modelDir.replace(/\\/g, '/')}'`,
-            "model_id = sys.argv[1] if len(sys.argv) > 1 else 'small.en'",
-            "os.makedirs(d, exist_ok=True)",
-            "WhisperModel(model_id, device='cpu', compute_type='int8', download_root=d)",
-            "print('MODEL_READY', flush=True)",
-          ].join('\n');
-          fs.writeFileSync(scriptPath, script, 'utf-8');
-
-          mainWindow?.webContents.send('whisper-model-progress', {
-            modelId: whisperModel || 'small.en',
-            line: `Downloading Whisper model (${whisperModel || 'small.en'})…`
-          });
-
-          const proc = spawn(pythonExe, ['-W', 'ignore', scriptPath, whisperModel || 'small.en'], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-          });
-          let output = '';
-          proc.stdout.on('data', d => {
-            output += String(d);
-            mainWindow?.webContents.send('whisper-model-progress', {
-              modelId: whisperModel || 'small.en', line: String(d).trim()
-            });
-          });
-          proc.stderr.on('data', d => {
-            const line = String(d).trim();
-            if (line && !line.includes('UserWarning') && !line.includes('HF_TOKEN')) {
-              mainWindow?.webContents.send('whisper-model-progress', {
-                modelId: whisperModel || 'small.en', line
-              });
-            }
-          });
-          proc.on('exit', (code) => {
-            try { fs.unlinkSync(scriptPath); } catch(_) {}
-            if (code === 0 || output.includes('MODEL_READY')) {
-              startWhisperServer(whisperModel).then(() => {
-                mainWindow?.webContents.send('whisper-setup-result', {
-                  success: true, message: 'Whisper is ready! Restarting AnchorCast…'
-                });
-                setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);
-              });
-              resolve({ ok: true });
-            } else {
-              resolve({ ok: false, error: `Model download failed (code ${code})` });
-            }
-          });
-          proc.on('error', e => {
-            try { fs.unlinkSync(scriptPath); } catch(_) {}
-            resolve({ ok: false, error: e.message });
-          });
-        }); // end pip.on('exit')
-      } // end tryNextPipStrategy
-
-      tryNextPipStrategy(); // kick off
-    });
-  }
-
-  // ── Windows path: bundled python.exe or setup_whisper.bat ───────────────
-  const hasBundledPy = fs.existsSync(bundledPyWin);
   if (hasBundledPy) {
-    // Python is bundled — download model directly, no console window
+    // Python is bundled — just download the missing model directly, no console window
     const modelDir = WHISPER_MODEL_DIR;
     try { fs.mkdirSync(modelDir, { recursive: true }); } catch(_) {}
 
+    // Write a silent Python script to download the model
     const scriptPath = path.join(app.getPath('temp'), 'ac_get_model.py');
     const script = [
       "import os, warnings, logging",
@@ -6139,33 +5758,40 @@ ipcMain.handle('run-whisper-setup', async () => {
       "WhisperModel(model_id, device='cpu', compute_type='int8', download_root=d)",
       "print('MODEL_READY', flush=True)",
     ].join('\n');
+
     fs.writeFileSync(scriptPath, script, 'utf-8');
 
     return new Promise((resolve) => {
-      const proc = spawn(bundledPyWin, ['-W', 'ignore', scriptPath, whisperModel || 'small.en'], {
-        windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+      const proc = spawn(bundledPy, ['-W', 'ignore', scriptPath, whisperModel || 'small.en'], {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
+
       let output = '';
       proc.stdout.on('data', d => {
         output += String(d);
         mainWindow?.webContents.send('whisper-model-progress', {
-          modelId: whisperModel || 'small.en', line: String(d).trim()
+          modelId: whisperModel || 'small.en',
+          line: String(d).trim()
         });
       });
       proc.stderr.on('data', d => {
         const line = String(d).trim();
         if (line && !line.includes('UserWarning') && !line.includes('HF_TOKEN') && !line.includes('symlink')) {
           mainWindow?.webContents.send('whisper-model-progress', {
-            modelId: whisperModel || 'small.en', line
+            modelId: whisperModel || 'small.en',
+            line
           });
         }
       });
+
       proc.on('exit', (code) => {
         try { fs.unlinkSync(scriptPath); } catch(_) {}
         if (code === 0 || output.includes('MODEL_READY')) {
           startWhisperServer(whisperModel).then(() => {
             mainWindow?.webContents.send('whisper-setup-result', {
-              success: true, message: 'Whisper is ready! Restarting AnchorCast...'
+              success: true,
+              message: 'Whisper is ready! Restarting AnchorCast...'
             });
             setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);
           });
@@ -6174,6 +5800,7 @@ ipcMain.handle('run-whisper-setup', async () => {
           resolve({ ok: false, error: `Model download failed (code ${code})` });
         }
       });
+
       proc.on('error', e => {
         try { fs.unlinkSync(scriptPath); } catch(_) {}
         resolve({ ok: false, error: e.message });
@@ -6181,7 +5808,7 @@ ipcMain.handle('run-whisper-setup', async () => {
     });
   }
 
-  // Last resort Windows fallback: run setup_whisper.bat
+  // Fallback: no bundled Python — run setup_whisper.bat
   const setupBat = resolveRuntimeResource('setup_whisper.bat');
   if (!fs.existsSync(setupBat)) {
     return { ok: false, error: 'Python not found and setup_whisper.bat missing. Please reinstall AnchorCast.' };
@@ -6280,8 +5907,8 @@ let pcmQueue        = [];
 //   Too much overlap (> 1s) → stitching drops valid new lines.
 // RMS GATE: 180 = quiet room background noise threshold.
 //   Raise to 300+ if the mic picks up PA system hum.
-const PCM_FLUSH_SECONDS    = 3.5;  // reduced from 4.5s — less lag, still enough for accuracy
-const PCM_OVERLAP_SECONDS  = 0.5;  // reduced from 0.75s — less overlap needed at 3.5s chunks
+const PCM_FLUSH_SECONDS    = 4.5;
+const PCM_OVERLAP_SECONDS  = 0.75;
 const PCM_MIN_RMS          = 180;
 const PCM_MIN_ACTIVE_RATIO = 0.012;
 const PCM_MAX_QUEUE_CHUNKS = 3;
@@ -6388,8 +6015,12 @@ async function processNextChunk() {
 
   try {
     let text = null;
-    const useLocal  = whisperSource === 'local' && whisperReady;
-    const useOnline = whisperSource === 'cloud' && currentSettings.openAiKey;
+    const useLocal   = whisperSource === 'local' && whisperReady;
+    const useOnline  = whisperSource === 'cloud' && currentSettings.openAiKey;
+    const useDeepgram = whisperSource === 'deepgram';
+
+    // Deepgram is handled entirely in the renderer — skip main.js processing
+    if (useDeepgram) { processNextChunk(); return; }
 
     if (useLocal) {
       try {
@@ -6398,7 +6029,7 @@ async function processNextChunk() {
         const timeoutMs = Math.ceil(Math.max(25000, audioDurationMs * 4 + 8000));
         const res = await fetch(`${WHISPER_URL}/transcribe`, {
           method: 'POST',
-          headers: { 'Content-Type': 'audio/wav', 'Content-Length': wavBuffer.length },
+          headers: { 'Content-Type': 'audio/wav', 'Content-Length': wavBuffer.length, 'X-Whisper-Secret': WHISPER_SECRET },
           body: wavBuffer,
           signal: AbortSignal.timeout(timeoutMs),
         });
@@ -6409,7 +6040,7 @@ async function processNextChunk() {
         }
       } catch (e) {
         if (e.name === 'TimeoutError') console.warn('[Whisper] Timeout — try base.en or tiny.en on slower CPUs');
-        else if (whisperReady) console.warn('[Whisper] request failed:', e.message); // only log if was ready
+        else console.warn('[Whisper] request failed:', e.message);
         if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') {
           whisperReady = false;
           mainWindow?.webContents.send('whisper-status', { ready: false });
@@ -6515,162 +6146,6 @@ function normalizeTranscriptText(text) {
     [/\bfirst timothy\b/gi, '1 Timothy'], [/\bsecond timothy\b/gi, '2 Timothy'],
     [/\bfirst thessalonians\b/gi, '1 Thessalonians'], [/\bsecond thessalonians\b/gi, '2 Thessalonians'],
     [/\bsong of songs\b/gi, 'Song of Solomon'],
-
-    // ── Biblical names Deepgram commonly mishears ──────────────────────────
-    [/\bzakius\b/gi, 'Zacchaeus'],
-    [/\bzakeus\b/gi, 'Zacchaeus'],
-    [/\bzakey?us\b/gi, 'Zacchaeus'],
-    [/\bzache?us\b/gi, 'Zacchaeus'],
-    [/\bzacheus\b/gi, 'Zacchaeus'],
-    [/\bbesali\b/gi, 'Bezalel'],
-    [/\bdesally\b/gi, 'Bezalel'],
-    [/\bbesaly\b/gi, 'Bezalel'],
-    [/\bbe[sz]al[iy]el?\b/gi, 'Bezalel'],
-    [/\bpostmortem\b/gi, 'Paul'],          // Deepgram mishears "Paul" as "postmortem"
-    [/\bpolymer\b/gi, 'Paul'],             // "Paul" misheard as "polymer"
-
-    // ── "Grace" misheard as other words (very common in fast African speech) ──
-    [/\bdecrease of (god|law|christ)\b/gi, 'grace of $1'],
-    [/\bincrease of gold\b/gi, 'grace of God'],
-    [/\bgrade of god\b/gi, 'grace of God'],
-    [/\braised? of god\b/gi, 'grace of God'],
-    [/\bgraze of god\b/gi, 'grace of God'],
-
-    // ── "God" misheard in fast speech ─────────────────────────────────────
-    [/\bgrace of job\b/gi, 'grace of God'],
-    [/\bgrace of gold\b/gi, 'grace of God'],
-    [/\bgrace of go\b/gi, 'grace of God'],
-    [/\bkingdom of go\b/gi, 'kingdom of God'],
-    [/\bword of go\b/gi, 'word of God'],
-    [/\bchildren of go\b/gi, 'children of God'],
-    [/\bpeople of go\b/gi, 'people of God'],
-    [/\bman of go\b/gi, 'man of God'],
-
-    // ── "Found grace" vs profanity — context-aware ────────────────────────
-    // Deepgram transcribes "Noah found grace" as "Noah fuck grace" in some accents
-    [/\bnoah fuck grace\b/gi, 'Noah found grace'],
-    [/\bfuck grace\b/gi, 'found grace'],       // biblical context only
-
-    // ── Book name mishears from this sermon ──────────────────────────────
-    // "Ephesians" heard as "in fifteenth" or "fifteen" by Deepgram
-    [/\bin fifteenth chapter\b/gi, 'Ephesians chapter'],
-    [/\bfifteenth chapter (\w+)\b/gi, 'Ephesians chapter $1'],
-    // "1 Peter" heard as "Amos two" — harder to fix without context
-    // Adding Amos cleanup so false detections are less likely
-    [/\bamos two was talking about\b/gi, '1 Peter was talking about'],
-
-    // ── Common sermon speech patterns that cause false positives ─────────
-    [/\bwhat pussy\b/gi, 'what passage'],      // "what passage?" misheard
-    [/\bthe antiseper\b/gi, 'the answer is'],
-    [/\bchris open\b/gi, 'Christ upon'],
-    [/\bit was biggie\b/gi, 'it was big'],
-    [/\bpostmortem was talking\b/gi, 'Paul was talking'],
-
-    // ── "Grace" core word reinforcement ──────────────────────────────────
-    [/\bthe grace of job\b/gi, 'the grace of God'],
-    [/\bgod is good at all time(?!s)\b/gi, 'God is good at all times'],
-
-    // ── Sermon 2 corrections (Apr 19, 2026) ──────────────────────────────
-    [/\bsad vision\b/gi, 'salvation'],
-    [/\bfor sad vision\b/gi, 'for salvation'],
-    [/\baffixure\b/gi, 'apostle'],
-    [/\ban affixure\b/gi, 'an apostle'],
-    [/\bby ?secuting\b/gi, 'persecuting'],
-    [/\bcycling ship\b/gi, 'keeping sheep'],
-    [/\bkick ?ship\b/gi, 'kingship'],
-    [/\bmess[iy] says\b/gi, 'mercy says'],
-    [/\bunsel?fly\b/gi, 'unselfishly'],
-    [/\bunmerited female\b/gi, 'unmerited favor'],
-    [/\bscriptatory\b/gi, 'scriptures'],
-    [/\bgrass of god\b/gi, 'grace of God'],
-    [/\bgrace for sad\b/gi, 'grace for salvation'],
-    [/\bsad addition\b/gi, 'salvation'],
-
-    // ── Sermon 3 corrections (Apr 12, 2026) ─ FOCUS sermon ──────────────
-    // CRITICAL: 'focus' → 'fuck us' in African English accent
-    [/\bfuck us\b/gi, 'focus'],
-    [/\bif you.?re watching,? fuck us\b/gi, 'if you are watching, focus'],
-    [/\bfuck us on\b/gi, 'focus on'],
-    [/\bfuck us\.\b/gi, 'focus.'],
-    // 1 Kings misheard
-    [/\bfirst kick from the (\d+)/gi, '1 Kings chapter $1'],
-    [/\bfirst kick from the\b/gi, '1 Kings'],
-    [/\bfourth kings?\b/gi, '1 Kings'],
-    [/\bfirst kick (\d+)/gi, '1 Kings $1'],
-    [/\bfirst take (\d+)\b/gi, '1 Kings $1'],
-    // Ephesians variant
-    [/\bephysians?\b/gi, 'Ephesians'],
-    // Names
-    [/\bzolom\b/gi, 'Solomon'],
-
-
-    // ── Sermon 6 corrections (Apr 26, 2026) ─ Blessing of Work (Deepgram) ──
-    [/\blocust placed man\b/gi,              'Lord placed man'],
-    [/\bhard water has plenty\b/gi,          'hard worker has plenty'],
-    [/\bhard water get rich\b/gi,            'hard worker gets rich'],
-    [/\bdelacing and become a slave\b/gi,    'be lazy and become a slave'],
-    [/\bmay not live to poverty\b/gi,        'mere talk leads to poverty'],
-    [/\blazy people work much\b/gi,          'lazy people want much'],
-    [/\bpestilence\.?\s+focus on\b/gi,    'perseverance. Focus on'],
-    [/\bfoursight\b/gi,                      'foresight'],
-    [/\btitty\b/gi,                          'duty'],
-    [/\bboiling the midnight oil\b/gi,       'burning the midnight oil'],
-    [/\bthe copier\b/gi,                     'the cupbearer'],
-
-    // ── Sermon 5 corrections (Apr 26, 2026) ─ Blessing of Work ──────────
-    [/\bprocter\b/gi, 'Proverbs'],
-    [/\bproctor\b/gi, 'Proverbs'],
-    [/\btheir lungs\b/gi, 'their lamps'],
-    [/\bour lungs\b/gi, 'our lamps'],
-    [/\bthe lungs\b/gi, 'the lamps'],
-    [/\blungs are going\b/gi, 'lamps are going out'],
-    [/\bhaving suicide\b/gi, 'having foresight'],
-    [/\bfour sides\b/gi, 'foresight'],
-    [/\bsuicide is the ability\b/gi, 'foresight is the ability'],
-    [/\blearning from the aunts\b/gi, 'learning from the ants'],
-    [/\bthe aunts today\b/gi, 'the ants today'],
-    [/\bthe aunt this morning\b/gi, 'the ant this morning'],
-    [/\batonement is very weak\b/gi, 'your amen is very weak'],
-    [/\bit'?s delicious!\b/gi, 'diligence!'],
-    [/\bpropitiation for yourself\b/gi, 'provision for yourself'],
-    [/\bpropitiation for others\b/gi, 'provision for others'],
-
-    // Mishears
-    [/\bfraud stealing in god\b/gi, 'trusting in God'],
-    [/\bfraud stealing\b/gi, 'trusting'],
-    [/\bwhy your son was pissed\b/gi, 'why your son was busy'],
-    [/\bjack of poultry\b/gi, 'jack of all trades'],
-    [/\bmaster of no\b/gi, 'master of none'],
-    // ── Sermon 4 corrections (Apr 15, 2026) ─ NEW LIFE IN CHRIST ────────
-    // Book name mishears
-    [/\bgalicia'?s chapter\b/gi,           'Galatians chapter'],
-    [/\bgalicias\b/gi,                     'Galatians'],
-    [/\bcollisions chapter\b/gi,           'Colossians chapter'],
-    [/\bcollisions\b/gi,                   'Colossians'],
-    [/\bconverseius chapter\b/gi,          'Colossians chapter'],
-    [/\bfishes number (\d+)/gi,            'Ephesians chapter $1'],
-    [/\bfishes number\b/gi,               'Ephesians'],
-    [/\bnew pipe a robot slab\b/gi,        'now Romans'],
-    // 'heirs' misheard as 'ears' — critical KJV word
-    [/\bjoint ears\b/gi,                   'joint heirs'],
-    [/\bears of god\b/gi,                  'heirs of God'],
-    [/\bears and heirs\b/gi,               'heirs of God'],
-    [/\bco ears\b/gi,                      'co-heirs'],
-    [/\bwe are afraid of god\b/gi,         'we are heirs of God'],
-    [/\bwe are ears\b/gi,                  'we are heirs'],
-    // 'firstborn' → 'fourth born'
-    [/\bthe fourth born of all creation\b/gi, 'the firstborn of all creation'],
-    [/\bfourth born\b/gi,                  'firstborn'],
-    // 'peculiar people' → 'pebillion people'
-    [/\bpebillion people\b/gi,             'peculiar people'],
-    // Other mishears
-    [/\bseed round before god\b/gi,        'filthy rags before God'],
-    [/\bsave conscious\b/gi,               'righteousness conscious'],
-    [/\bright ?eous conscious\b/gi,        'righteousness conscious'],
-    [/\bkisos\b/gi,                        'Jesus'],
-    [/\bright side of him\b/gi,            'right hand of the Father'],
-    [/\bnew payment\b/gi,                  'new man'],
-    [/\bnew ports\b/gi,                    'new man'],
   ];
   for (const [pattern, replacement] of fixes) out = out.replace(pattern, replacement);
 
@@ -6678,13 +6153,8 @@ function normalizeTranscriptText(text) {
   // Applies BEFORE dedup so the ref survives
   out = _convertVerbalRefs(out);
 
-  // ── Repetition removal — 4 passes ────────────────────────────────────────
-  // Pass 0: Sentence-level loop collapse (Deepgram streaming glitch)
-  // When audio drops, Deepgram re-transcribes the last sentence 5-15 times.
-  // Detect: same sentence (8+ words) repeating 3+ times consecutively → keep once
-  out = out.replace(/([^.!?]{30,}[.!?,]?)(?:\s+\1){2,}/gi, '$1');
-
-  // Pass 1: 2+ word phrase repeats with optional punctuation between
+  // ── Repetition removal — 3 passes ────────────────────────────────────────
+  // Pass 1: 2+ word phrase repeats with optional punctuation between (catches "Bible reading, Bible reading")
   out = out.replace(/\b(.{4,80}?)(?:[,.\s]+\1)+\b/gi, '$1');
   // Pass 2: exact word-pair repeats "Jesus Christ Jesus Christ"
   out = out.replace(/\b(\w+\s+\w+)[,. ]+\1\b/gi, '$1');
@@ -8735,7 +8205,14 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
   const util = require('util');
   const execFileAsync = util.promisify(execFile);
 
-  const ext    = path.extname(filePath).toLowerCase();
+  // ── Security: validate filePath ────────────────────────────────────────
+  const resolvedPath = path.resolve(String(filePath || ''));
+  const allowedExt = new Set(['.pptx', '.ppt', '.pdf', '.key']);
+  const ext = path.extname(resolvedPath).toLowerCase();
+  if (!allowedExt.has(ext)) return { success: false, error: 'Unsupported file type' };
+  if (!fs.existsSync(resolvedPath)) return { success: false, error: 'File not found' };
+  // Block path traversal and shell metacharacters
+  if (/[;&|`$<>\n\r\0]/.test(resolvedPath)) return { success: false, error: 'Invalid file path' };
   const id     = Date.now().toString();
   const outDir = path.join(PRES_DIR, id);
   fs.mkdirSync(outDir, { recursive: true });
@@ -8746,21 +8223,31 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
     // On Windows, first try native PowerPoint automation when Office is installed.
     if (process.platform === 'win32' && ['.pptx','.ppt'].includes(ext)) {
       try {
-        const escapedSrc = filePath.replace(/'/g, "''");
-        const escapedOut = outDir.replace(/'/g, "''");
-        const ps = [
+        // Write script to a temp file and use -File with positional -Args
+        // -Command + param() does NOT receive -Args; -File does.
+        const os = require('os');
+        const tmpScript = path.join(os.tmpdir(), `anchorcast_ppt_${Date.now()}.ps1`);
+        const psLines = [
+          'param($src, $outDir)',
           "$ErrorActionPreference = 'Stop'",
-          `$src='${escapedSrc}'`,
-          `$outDir='${escapedOut}'`,
-          "$ppt = New-Object -ComObject PowerPoint.Application",
-          "$ppt.Visible = 1",
-          "$pres = $ppt.Presentations.Open($src, $false, $false, $false)",
+          '$ppt = New-Object -ComObject PowerPoint.Application',
+          '$ppt.Visible = 1',
+          '$pres = $ppt.Presentations.Open($src, $false, $false, $false)',
           "$pres.Export($outDir, 'PNG', 1920, 1080)",
-          "$pres.Close()",
-          "$ppt.Quit()",
-          "Write-Output 'ok'"
-        ].join('; ');
-        await execFileAsync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { timeout: 240000, maxBuffer: 4 * 1024 * 1024 });
+          '$pres.Close()',
+          '$ppt.Quit()',
+          "Write-Output 'ok'",
+        ].join('\r\n');
+        fs.writeFileSync(tmpScript, psLines, 'utf8');
+        try {
+          await execFileAsync('powershell.exe', [
+            '-NoProfile', '-ExecutionPolicy', 'Bypass',
+            '-File', tmpScript,
+            resolvedPath, outDir,
+          ], { timeout: 240000, maxBuffer: 4 * 1024 * 1024 });
+        } finally {
+          try { fs.unlinkSync(tmpScript); } catch(_) {}
+        }
         const files = fs.readdirSync(outDir)
           .filter(f => /(^Slide\d+\.PNG$)|(^slide\d+\.png$)|(^\d+\.png$)/i.test(f))
           .sort((a,b) => {
@@ -8778,9 +8265,9 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
             }
             slides.push({ index:i, imagePath: normalized });
           });
-          const name   = path.basename(filePath, ext);
+          const name   = path.basename(resolvedPath, ext);
           const list   = readPresentations();
-          list.push({ id, name, filePath, slideCount: slides.length, outDir, importedAt: Date.now() });
+          list.push({ id, name, resolvedPath, slideCount: slides.length, outDir, importedAt: Date.now() });
           savePresentations(list);
           return { success: true, id, name, slides, slideCount: slides.length, outDir };
         }
@@ -8803,8 +8290,8 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
         try {
           const tmpPdfDir = path.join(outDir, 'pdf-export');
           fs.mkdirSync(tmpPdfDir, { recursive: true });
-          await execFileAsync(soffice, ['--headless', '--convert-to', 'pdf', '--outdir', tmpPdfDir, filePath], { timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
-          const pdfName = path.basename(filePath, ext) + '.pdf';
+          await execFileAsync(soffice, ['--headless', '--convert-to', 'pdf', '--outdir', tmpPdfDir, resolvedPath], { timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
+          const pdfName = path.basename(resolvedPath, ext) + '.pdf';
           const pdfPath = path.join(tmpPdfDir, pdfName);
           if (fs.existsSync(pdfPath)) {
             const slidePrefix = path.join(outDir, 'slide');
@@ -8818,9 +8305,9 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
               });
             if (files.length) {
               const slides = files.map((f,i) => ({ index:i, imagePath: path.join(outDir,f) }));
-              const name   = path.basename(filePath, ext);
+              const name   = path.basename(resolvedPath, ext);
               const list   = readPresentations();
-              list.push({ id, name, filePath, slideCount: slides.length, outDir, importedAt: Date.now() });
+              list.push({ id, name, resolvedPath, slideCount: slides.length, outDir, importedAt: Date.now() });
               savePresentations(list);
               return { success: true, id, name, slides, slideCount: slides.length, outDir };
             }
@@ -8839,7 +8326,7 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
 
     for (const py of pythonCandidates) {
       try {
-        const { stdout } = await execFileAsync(py, [pyScript, filePath, outDir],
+        const { stdout } = await execFileAsync(py, [pyScript, resolvedPath, outDir],
           { timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
         const parsed = JSON.parse(stdout.trim());
         if (parsed.success || parsed.error) { result = parsed; break; }
@@ -8853,7 +8340,7 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
     if (!result) {
       if (ext === '.pdf') {
         const slidePrefix = path.join(outDir, 'slide');
-        await execFileAsync('pdftoppm', ['-png', '-r', '150', filePath, slidePrefix],
+        await execFileAsync('pdftoppm', ['-png', '-r', '150', resolvedPath, slidePrefix],
           { timeout: 120000 });
         const files = fs.readdirSync(outDir)
           .filter(f => f.startsWith('slide') && f.endsWith('.png'))
@@ -8883,9 +8370,9 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
     }
 
     const slides = result.slides;
-    const name   = path.basename(filePath, ext);
+    const name   = path.basename(resolvedPath, ext);
     const list   = readPresentations();
-    list.push({ id, name, filePath, slideCount: slides.length, outDir, importedAt: Date.now() });
+    list.push({ id, name, resolvedPath, slideCount: slides.length, outDir, importedAt: Date.now() });
     savePresentations(list);
 
     return { success: true, id, name, slides, slideCount: slides.length, outDir };
@@ -9230,7 +8717,21 @@ ipcMain.handle('get-theme-designer-params', () => {
   return d;
 });
 ipcMain.handle('show-remote-url',()=>{ showRemoteUrl(); return{success:true}; });
-ipcMain.handle('open-external',(_, url)=>{ shell.openExternal(url); return{success:true}; });
+ipcMain.handle('open-external',(_, url)=>{
+  try {
+    const parsed = new URL(url);
+    const allowed = ['https:', 'http:', 'mailto:'];
+    if (!allowed.includes(parsed.protocol)) {
+      console.warn('[Security] open-external blocked unsafe scheme:', parsed.protocol, url);
+      return { success: false, error: 'Blocked: unsafe URL scheme' };
+    }
+    shell.openExternal(url);
+    return { success: true };
+  } catch(e) {
+    console.warn('[Security] open-external invalid URL:', url);
+    return { success: false, error: 'Invalid URL' };
+  }
+});
 ipcMain.handle('copy-to-clipboard', (_, text) => { try { clipboard.writeText(String(text || '')); return { success:true }; } catch (e) { return { success:false, error: e?.message || 'Copy failed' }; } });
 
 // Remote server info and toggle

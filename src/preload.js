@@ -220,16 +220,25 @@ contextBridge.exposeInMainWorld('electronAPI',{
       'logo-overlay-drag-update',
       'theme-designer-open',
       'themes-updated',
-      'song-manager-new-song','song-manager-open-song','license-file-opened','registration-complete','display-warning','timer-state-sync','timer-stopped','timer-flash-speed','set-projection-bg','show-clock','hide-clock','confirm-quit-with-transcript','update-available','update-downloaded','update-download-progress',
+      'song-manager-new-song','song-manager-open-song','license-file-opened','registration-complete','display-warning','timer-state-sync','timer-stopped','timer-flash-speed','set-projection-bg','show-clock','hide-clock','confirm-quit-with-transcript','update-available','update-available-mac','update-downloaded','update-download-progress','update-checking',
     ];
     if(!allowed.includes(channel)) return()=>{};
     const sub=(_,...args)=>cb(...args);
     ipcRenderer.on(channel,sub);
     return()=>ipcRenderer.removeListener(channel,sub);
   },
-  updaterInstallNow: () => ipcRenderer.invoke('updater-install-now'),
-  updaterCheckNow:   () => ipcRenderer.invoke('updater-check-now'),
+  updaterInstallNow:   () => ipcRenderer.invoke('updater-install-now'),
+  updaterDownloadNow:  () => ipcRenderer.invoke('updater-download-now'),
+  updaterCheckNow:     () => ipcRenderer.invoke('updater-check-now'),
   appVersion: ipcRenderer.sendSync('get-app-version'),
   platform:process.platform,
   isElectron:true,
+  // F4 fix: webSecurity:true means file.path is no longer populated on File objects.
+  // Use webUtils.getPathForFile() instead — the correct Electron API for this.
+  getPathForFile: (file) => {
+    try {
+      const { webUtils } = require('electron');
+      return webUtils.getPathForFile(file);
+    } catch(_) { return file?.path || ''; }
+  },
 });
