@@ -59,8 +59,17 @@ On Windows, double-click `start.bat`.
 
 ## 📥 Download
 
-👉 **[anchorcastapp.com](https://www.anchorcastapp.com)** — Windows installer (Python + Whisper bundled, fully offline)  
-👉 **[GitHub Releases](https://github.com/anchorcastapp-team/anchorcastapp/releases)** — all versions
+👉 **[anchorcastapp.com](https://www.anchorcastapp.com)** — Windows & macOS installers (Python + Whisper bundled, fully offline)  
+👉 **[GitHub Releases](https://github.com/anchorcastapp-team/anchorcastapp/releases)** — all versions and build variants
+
+| Platform | Variant | Size | Description |
+|----------|---------|------|-------------|
+| Windows | **Full** | ~600 MB | Python + Whisper model bundled — works offline immediately |
+| Windows | **Light** | ~200 MB | Python bundled — downloads Whisper model on first use |
+| macOS Apple Silicon | **Full** | ~500 MB | For M1/M2/M3/M4 Macs, model bundled |
+| macOS Apple Silicon | **Light** | ~150 MB | For M1/M2/M3/M4 Macs, downloads model on first use |
+| macOS Intel | **Full** | ~500 MB | For Intel Macs, model bundled |
+| macOS Intel | **Light** | ~150 MB | For Intel Macs, downloads model on first use |
 
 ---
 
@@ -88,8 +97,8 @@ On Windows, double-click `start.bat`.
 - **Logo, alerts, and live captions** — overlay layers managed independently of the main display
 
 ### 📱 Remote Control
-- Access at `http://[your-ip]:5000/remote` from any phone or tablet on Wi-Fi
-- Live projection preview, Scripture / Songs / Media mode tabs
+- Access at `http://[your-ip]:8080/remote` from any phone or tablet on Wi-Fi
+- Live projection preview, Scripture / Songs / Media / Slides mode tabs
 - Prev / Next / Clear / Go Live — full control from anywhere in the building
 - PIN authentication with role-based access (admin, scripture, songs, media, monitor)
 
@@ -102,15 +111,16 @@ On Windows, double-click `start.bat`.
 
 ### 📝 Sermon Intelligence
 - **Live transcript** — auto-saved after every session
-- **AI Sermon Notes** — generate structured notes from the transcript with one click
+- **AI Sermon Notes** — generate structured notes (title, topic, summary, all main points, key verses, applications) from the transcript with one click
 - **Sermon Intelligence** — AI title suggestions, keyword analysis, and structure insights
 - **Service Archive** — searchable history of every service by title, speaker, or verse
 - **Analytics Dashboard** — cross-service stats: most-used books, quoted verses, speaker patterns
 
-### 🔒 Reliability
+### 🔒 Security & Reliability
 - **Offline-first** — works entirely without internet using local AI and local Bible data
 - **KJV bundled** by default; import any translation (NKJV, NIV, ESV, NLT, NASB, ASV) via JSON
-- **Role-based remote access** — PIN-protected operator controls
+- **Hardened security** — settings API auth, PBKDF2 PIN hashing, media protocol path restriction, CSP headers (v1.4.0)
+- **Role-based remote access** — PIN-protected operator controls, session tokens cleared on disconnect
 - **NDI + MJPEG** — professional and fallback streaming options built in
 
 ---
@@ -127,6 +137,7 @@ On Windows, double-click `start.bat`.
 | Remote control | ✅ PIN + roles | ✅ open |
 | NDI output | ✅ | ❌ |
 | Local Whisper transcription | ✅ | ❌ |
+| Deepgram cloud transcription | ✅ | ✅ |
 | Countdown timer | ✅ | ❌ |
 | PPTX import | ✅ | ❌ |
 | Multi-display management | ✅ | ❌ |
@@ -142,22 +153,46 @@ On Windows, double-click `start.bat`.
 | Send Preview → Live | `Enter` |
 | Next / Prev verse | `↓ / ↑` |
 | Clear display | `Ctrl+Backspace` |
-| Open Projection | `Ctrl+P` |
+| Open Projection | `Ctrl+Shift+P` |
 | Open Settings | `Ctrl+,` |
 | Help | `F1` |
+| Developer Tools | `F12` / `Ctrl+Shift+I` |
 
 ---
 
 ## 🔨 Build
 
+### Windows
 ```bash
-npm run build:win    # Windows installer — includes AnchorCast Timer shortcut
-npm run build:mac    # macOS DMG
-npm run build:linux  # AppImage
-npm run build:timer  # Standalone AnchorCast Timer installer
+npm run build:win:full     # Full installer — Python + Whisper model bundled
+npm run build:win:light    # Light installer — Python bundled, model downloads on first use
 ```
 
-> **Before building on Windows:** run `setup_whisper.bat` to create the `python\` folder. Optionally place `vc_redist.x64.exe` in the project root for a fully offline installer. Models in a `models\` folder are bundled automatically; otherwise the installer offers to download them.
+### macOS
+```bash
+# Apple Silicon (M1/M2/M3)
+npm run build:mac:full:arm
+npm run build:mac:light:arm
+
+# Intel
+npm run build:mac:full:x64
+npm run build:mac:light:x64
+```
+
+### Auto-Update packages (publish to GitHub)
+```bash
+GH_TOKEN=your_token npm run build:update:win
+GH_TOKEN=your_token npm run build:update:mac   # runs arm64 + x64
+```
+
+### Standalone Timer
+```bash
+npm run build:timer
+```
+
+> **Windows:** Run `setup_whisper.bat` before building to create the `python\` folder. Place `vc_redist.x64.exe` in the project root for a fully offline installer. Models in a `models\` folder are bundled automatically.
+
+> **macOS:** Set `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` environment variables to notarize. Swap the `python/` folder to the correct architecture before each build (`aarch64-apple-darwin` for ARM64, `x86_64-apple-darwin` for Intel).
 
 ---
 
@@ -167,23 +202,29 @@ npm run build:timer  # Standalone AnchorCast Timer installer
 src/
 ├── main.js                    # Electron main process — IPC, projection, timer, NDI
 ├── timer-main.js              # Standalone AnchorCast Timer entry point
-├── preload.js                 # Electron IPC bridge
+├── preload.js                 # Electron IPC bridge (contextBridge)
 └── renderer/
     ├── index.html             # Main operator dashboard
     ├── projection.html        # Projection output window
     ├── countdown-window.html  # Timer control window
     └── js/
         ├── app.js             # Main app logic and operator workflow
-        ├── ai-detection.js    # Bible verse detection engine
+        ├── ai-detection.js    # Bible verse detection engine + Sermon Notes AI
         ├── bible.js           # Bible database + n-gram indexes
         └── electron-shim.js   # Web-mode compatibility layer
 
-server.js            # Express web server (web mode)
-whisper_server.py    # Local Whisper AI transcription server
-installer.nsh        # NSIS installer hooks (VC++, models, timer shortcut)
-data/kjv.json        # Bundled KJV Bible
-ndi-addon/           # Native NDI SDK addon
-assets/              # App icons, splash screen, demo GIFs.
+server.js              # Express web server (web mode)
+whisper_server.py      # Local Whisper AI transcription server
+installer.nsh          # NSIS installer hooks (VC++, models, timer shortcut)
+scripts/
+├── after-pack.js      # electron-builder hook — restores Python permissions on Mac
+├── notarize-mac.js    # macOS code-signing afterSign hook
+└── notarize-mac-cli.js  # Standalone CLI to notarize + staple DMGs after build
+build/
+└── entitlements.mac.plist  # macOS hardened runtime entitlements
+data/kjv.json          # Bundled KJV Bible
+ndi-addon/             # Native NDI SDK addon
+assets/                # App icons, splash screen, demo GIFs
 ```
 
 ---
@@ -191,9 +232,10 @@ assets/              # App icons, splash screen, demo GIFs.
 ## 📋 Requirements
 
 - **Node.js** 18+
-- **Electron** 31+ (desktop mode)
-- **Python 3.10–3.12** — optional, for local Whisper transcription (bundled in the Windows installer and the MacOS DMG)
+- **Electron** 33+ (desktop mode)
+- **Python 3.10–3.12** — optional, for local Whisper transcription (bundled in the Windows installer and macOS DMG)
 - **NDI 6 SDK** — optional, for NDI output
+- **Apple Developer ID** — optional, for macOS notarization (required for GitHub distribution)
 
 ---
 
