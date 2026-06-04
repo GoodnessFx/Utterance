@@ -424,6 +424,7 @@ process.stdout.write = (chunk, encoding, cb) => {
 };
 
 let mainWindow=null, projectionWindow=null, historyWindow=null, themeWindow=null, splashWindow=null, countdownWindow=null;
+let _projectionLostDisplay = false; // true when HDMI removed — restored on display-added
 let splashShownAt = 0;
 const MIN_SPLASH_MS = 2400;
 let httpServer=null;
@@ -998,6 +999,9 @@ ipcMain.on('quit-cancelled', () => { /* do nothing — user changed mind */ });
 ipcMain.on('get-app-version', (e) => { e.returnValue = app.getVersion(); });
 
 app.on('window-all-closed',()=>{
+  // Guard: if mainWindow is still alive, this fired because projection closed —
+  // don't quit the whole app. Only quit when mainWindow itself is gone.
+  if (mainWindow && !mainWindow.isDestroyed()) return;
   stopNdi();
   stopHttpServer();
   stopWhisperServer();
@@ -1637,6 +1641,7 @@ function createProjectionWindow(displayId){
       if (projectionWindow._targetDisplayId !== removedDisplay.id) return;
 
       projectionWindow._lostTargetDisplay = true;
+      _projectionLostDisplay = true;
       const primaryId  = screen.getPrimaryDisplay().id;
       const remaining  = screen.getAllDisplays();
       // Look for another external display (not the primary/laptop screen)
@@ -1691,17 +1696,45 @@ function createProjectionWindow(displayId){
     });
 
     screen.on('display-added', (_evt, newDisplay) => {
-      if (!projectionWindow || projectionWindow.isDestroyed()) return;
-      if (!projectionWindow._lostTargetDisplay) return;
       if (newDisplay.id === screen.getPrimaryDisplay().id) return;
-      projectionWindow._lostTargetDisplay = false;
-      const b = newDisplay.bounds;
-      projectionWindow._targetDisplayId = newDisplay.id;
-      projectionWindow._displayScaleFactor = newDisplay.scaleFactor || 1;
-      projectionWindow._displayWidth = b.width;
-      projectionWindow._displayHeight = b.height;
-      projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
-      projectionWindow.setFullScreen(true);
+
+      // Case 1: projection window still exists (was parked off-screen)
+      if (projectionWindow && !projectionWindow.isDestroyed()) {
+        if (!projectionWindow._lostTargetDisplay && !_projectionLostDisplay) return;
+        projectionWindow._lostTargetDisplay = false;
+        _projectionLostDisplay = false;
+        const b = newDisplay.bounds;
+        projectionWindow._targetDisplayId = newDisplay.id;
+        projectionWindow._displayScaleFactor = newDisplay.scaleFactor || 1;
+        projectionWindow._displayWidth = b.width;
+        projectionWindow._displayHeight = b.height;
+        projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+        projectionWindow.setFullScreen(true);
+        mainWindow?.webContents.send('display-warning', {
+          msg: 'External display reconnected — projection restored.',
+          level: 'info'
+        });
+        return;
+      }
+
+      // Case 2: projection window was closed when display was removed — recreate it
+      if (_projectionLostDisplay) {
+        _projectionLostDisplay = false;
+        console.log('[Display] External display reconnected — recreating projection window...');
+        // Small delay to let OS stabilize the display
+        setTimeout(() => {
+          try {
+            createProjectionWindow(newDisplay.id);
+            mainWindow?.webContents.send('display-warning', {
+              msg: 'External display reconnected — projection restored. Press Project Live to show content.',
+              level: 'info'
+            });
+            mainWindow?.webContents.send('projection-opened');
+          } catch(e) {
+            console.error('[Display] Failed to recreate projection window:', e.message);
+          }
+        }, 800);
+      }
     });
   }
 
@@ -2029,6 +2062,16 @@ function initAutoUpdater() {
 
 function buildMenu(){
   const t=[
+    // ── macOS App menu (name only shows on Mac) ───────────────────────────
+    ...(process.platform==='darwin'?[{label:app.name,submenu:[
+      {role:'about'},
+      {type:'separator'},
+      {role:'services'},
+      {type:'separator'},
+      {role:'hide'},{role:'hideOthers'},{role:'unhide'},
+      {type:'separator'},
+      {role:'quit'},
+    ]}]:[]),
     // ── File ──────────────────────────────────────────────────────────────
     {label:'File',submenu:[
       {label:'New Schedule',accelerator:'CmdOrCtrl+N',
@@ -2085,6 +2128,22 @@ function buildMenu(){
       {label:'Next Item  →',accelerator:'CmdOrCtrl+Right',click:()=>mainWindow?.webContents.send('shortcut-next')},
       {label:'Prev Item  ←',accelerator:'CmdOrCtrl+Left',click:()=>mainWindow?.webContents.send('shortcut-prev')},
       {label:'Clear Display',accelerator:'CmdOrCtrl+Backspace',click:()=>mainWindow?.webContents.send('shortcut-clear')},
+    ]},
+    // ── Edit — required on macOS for Cmd+C/V/X/Z/A to work in text inputs ─
+    {label:'Edit',submenu:[
+      {role:'undo'},
+      {role:'redo'},
+      {type:'separator'},
+      {role:'cut'},
+      {role:'copy'},
+      {role:'paste'},
+      {role:'pasteAndMatchStyle'},
+      {role:'delete'},
+      {role:'selectAll'},
+      ...(process.platform==='darwin'?[
+        {type:'separator'},
+        {label:'Speech',submenu:[{role:'startSpeaking'},{role:'stopSpeaking'}]},
+      ]:[]),
     ]},
     // ── View ──────────────────────────────────────────────────────────────
     {label:'View',submenu:[
@@ -6146,6 +6205,50 @@ function normalizeTranscriptText(text) {
     [/\bfirst timothy\b/gi, '1 Timothy'], [/\bsecond timothy\b/gi, '2 Timothy'],
     [/\bfirst thessalonians\b/gi, '1 Thessalonians'], [/\bsecond thessalonians\b/gi, '2 Thessalonians'],
     [/\bsong of songs\b/gi, 'Song of Solomon'],
+    // ── Corrections from live sermons ────────────────────────────────────────
+    // Jeremiah 29:13 paraphrase mishears
+    [/\byou will fight me\b/gi, 'you will find me'],
+    [/\bseek me and you will fight\b/gi, 'seek me and you will find'],
+    [/\bsick me\b/gi, 'seek me'],
+    [/\bthe sick can go in\b/gi, "the secret of the Lord"],
+    [/\bsickers\b/gi, 'seekers'],
+    // Genesis 17:1
+    [/\bwalk before me.*be blameless\b/gi, 'walk before me and be blameless'],
+    [/\bbe thou perfect\b/gi, 'be thou perfect'],
+    // 1 Corinthians 2:9
+    [/\beye has not seen.*ear has not heard\b/gi, 'eye has not seen nor ear heard'],
+    [/\bi have not seen.*had not heard\b/gi, 'eye has not seen nor ear heard'],
+    // John 15 — abide
+    [/\bby the divine\b/gi, 'abide in the vine'],
+    [/\bbinding\b/gi, 'abiding'],
+    [/\bapane\b/gi, 'abiding'],
+    // Psalm 25:14
+    [/\bthe secret of the law\b/gi, 'the secret of the Lord'],
+    [/\bthe law will confide\b/gi, 'the Lord will confide'],
+    // Common Nigerian English Whisper mishears
+    [/\bdiplomatic relationship\b/gi, 'deeper relationship'],
+    [/\bfullness of cost\b/gi, 'fullness of God'],
+    [/\bethernet life\b/gi, 'eternal life'],
+    [/\bgolden relationship\b/gi, 'God relationship'],
+    [/\bhallelujah\. amen\.\s*/gi, ''],  // strip congregation responses between verse fragments
+    // Prayer service mishears
+    [/\bflourish like a factory\b/gi, 'flourish like a palm tree'],
+    [/\ba seed of lebanon\b/gi, 'a cedar of Lebanon'],
+    [/\bseed of lebanon\b/gi, 'cedar of Lebanon'],
+    [/\bask for the old car\b/gi, 'ask for the old paths'],
+    [/\bold car.*part\b/gi, 'old paths, where the good way is'],
+    [/\bsick you will find it\b/gi, 'seek you will find it'],
+    [/\bsick, you will find\b/gi, 'seek, you will find'],
+    [/\bwisdom is the prosperity\b/gi, 'wisdom is the principal thing'],
+    [/\briches of secret places\b/gi, 'treasures of darkness and hidden riches'],
+    [/\bthey shall be as mortal\b/gi, 'they shall be as nothing'],
+    [/\bshall be as good as you are\b/gi, 'shall be as nothing'],
+    [/\bthe expectation of the\s*$/gim, 'the expectation of the righteous shall not be cut off'],
+    [/\bnot be cultured\b/gi, 'not be cut short'],
+    [/\bdominion over the fish\b/gi, 'dominion over the fish of the sea'],
+    [/\bproverbs chapter four verse.*five to seven\b/gi, 'Proverbs 4:7'],
+    [/\bpsalm 71 verse 31\b/gi, 'Psalm 71:21'],  // likely mishear of 71:21
+    [/\bgenesis 1.*28\b/gi, 'Genesis 1:28'],
   ];
   for (const [pattern, replacement] of fixes) out = out.replace(pattern, replacement);
 
