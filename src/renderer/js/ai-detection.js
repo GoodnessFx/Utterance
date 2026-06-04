@@ -11,9 +11,9 @@ window.AIDetection = (() => {
   let recentEmits    = new Map();
   let learnedPhrases = [];
 
-  // Rolling window — 6 lines gives ~18s of context, enough for cross-chunk refs
-  // without accumulating too much stale text that causes false positives
-  const WINDOW_SIZE = 6;
+  // Rolling window — 8 lines gives ~24s of context
+  // Longer window helps catch scripture embedded mid-prayer
+  const WINDOW_SIZE = 8;
   let recentLines = [];
   let lastWindowHash = '';
 
@@ -471,19 +471,56 @@ window.AIDetection = (() => {
   // ── 5. CLAUDE AI DETECTION ────────────────────────────────────────────────
   async function detectWithClaude(windowText) {
     if (!apiKey) return [];
-    const cacheKey = windowText.slice(-300);
+
+    // Strip repetitive prayer loops that flood the window and bury scripture
+    // e.g. "In the name of Jesus." × 20 during intercession
+    const cleanText = windowText
+      .replace(/(\bin the (precious |)name of (the Lord |)Jesus(?: Christ)?[.,]?\s*){3,}/gi, 'In the name of Jesus. ')
+      .replace(/(\bin Jesus(?: precious)? name[.,]?\s*){3,}/gi, 'In Jesus name. ')
+      .replace(/(\bamen[.,]?\s*){3,}/gi, 'Amen. ')
+      .replace(/(\bhallelujah[.,]?\s*){3,}/gi, 'Hallelujah. ')
+      .replace(/(\boh lord my god[.,]?\s*){3,}/gi, 'Oh Lord my God. ')
+      .replace(/(\bjesus[.,]?\s*){4,}/gi, 'Jesus. ')
+      .trim();
+
+    const cacheKey = cleanText.slice(-300);
     if (detectionCache.has(cacheKey)) return detectionCache.get(cacheKey);
 
     const prompt = `You are a Bible verse detector for a live church sermon app.
+The preacher speaks in a West African Pentecostal style — verses are often paraphrased, split across sentences, or delivered with congregation responses ("Hallelujah", "Amen") in between.
 
-A preacher may quote, paraphrase, or verbally reference Bible verses. Detect any:
-- Direct quotes (even partial)
-- Paraphrases of well-known verses
-- Verbal mentions like "turn to John 3" or "as Paul wrote in Romans 8"
-- Thematic references that clearly point to a specific verse
+Detect ANY of the following:
+- Direct quotes, even partial or mid-sentence
+- Paraphrases of well-known verses (e.g. "seek me with all your heart" = Jeremiah 29:13)
+- Verbal references like "turn to John 3", "as Paul wrote in Romans 8", "Genesis chapter 17"
+- Thematic phrases that clearly identify a specific verse
+- References named explicitly with book+chapter or book+chapter+verse
 
-TRANSCRIPT (last ~25 seconds of sermon):
-"${windowText}"
+Key verses common in this preaching context to watch for:
+- "seek me / find me / all your heart" → Jeremiah 29:13
+- "walk before me / be blameless / be perfect" → Genesis 17:1
+- "eye has not seen / ear has not heard" → 1 Corinthians 2:9
+- "abide in me / bear fruit / branch / vine" → John 15:4-5
+- "that I may know him" → Philippians 3:10
+- "this is eternal life / that they may know you" → John 17:3
+- "the secret of the Lord / those who fear him" → Psalm 25:14
+- "my soul thirsts / earnestly I seek" → Psalm 63:1
+- "righteous shall flourish / palm tree / cedar of Lebanon / fresh and flourishing / old age" → Psalm 92:12-14
+- "as the rain / so shall my word / not return void / performed / intended" → Isaiah 55:10-11
+- "treasures of darkness / hidden riches / secret places" → Isaiah 45:3
+- "ask for the old paths / good way / rest for your soul" → Jeremiah 6:16
+- "be fruitful / multiply / fill the earth / have dominion" → Genesis 1:28
+- "those against you shall be as nothing / shall perish" → Isaiah 41:11-12
+- "wisdom is the principal thing" → Proverbs 4:7
+- "surely there is an end / expectation of the righteous not cut off" → Proverbs 23:18
+- "say to the righteous it shall be well" → Isaiah 3:10
+- "ask / seek / knock / door opened" → Matthew 7:7-8
+- "call unto me / great and mighty things" → Jeremiah 33:3
+- "behold the days come / perform that good word" → Jeremiah 33:14
+- "blessed be the Lord God of our salvation" → Psalm 68:19
+
+TRANSCRIPT (last ~25 seconds):
+"${cleanText}"
 
 Respond ONLY with a JSON array. Each detected verse:
 {
@@ -681,11 +718,12 @@ Return [] if nothing detected. No markdown, no extra text.`;
     lastEmittedVerse = null;
   }
 
-  async function generateSermonNotes(transcript, title = '') {
-    if (!apiKey) throw new Error('API key required');
+  async function generateSermonNotes(transcript, title = '', keyOverride = '') {
+    const key = keyOverride || apiKey;
+    if (!key) throw new Error('API key required');
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
@@ -694,6 +732,10 @@ Return [] if nothing detected. No markdown, no extra text.`;
         }],
       }),
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `API error ${response.status}`);
+    }
     const data = await response.json();
     const text = data.content?.[0]?.text || '{}';
     return JSON.parse(text.replace(/```json|```/g, '').trim());
