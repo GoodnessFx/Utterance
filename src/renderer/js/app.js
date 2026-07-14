@@ -2693,8 +2693,11 @@ function handleDetection(detection) {
   // This biases the next 30s of transcription toward the same passage vocabulary,
   // dramatically improving detection accuracy when the preacher quotes the same verse.
   if (det.text && window.electronAPI?.reinforceWhisper) {
-    // Send verse text + ref as reinforcement (e.g. "John 3:16. For God so loved the world...")
-    const reinforceText = `${det.ref}. ${det.text}`.slice(0, 350);
+    // Send ONLY the verse text as reinforcement — NOT the reference number.
+    // Whisper echoes initial_prompt content back into its output, so if we include
+    // "Exodus 6:2." the literal reference leaks into the transcript and gets
+    // re-detected as a false verse. Sending bare verse words avoids this.
+    const reinforceText = String(det.text).slice(0, 300);
     window.electronAPI.reinforceWhisper({ text: reinforceText, ttl: 30 }).catch(() => {});
   }
 
@@ -7595,15 +7598,39 @@ function pickLogoOverlayFile() {
   inp.onchange = () => {
     const f = inp.files?.[0];
     if (!f) return;
-    const url = URL.createObjectURL(f);
     const isVideo = f.type.startsWith('video');
-    State._logoOverlay.src = url;
-    State._logoOverlay.type = isVideo ? 'video' : 'image';
-    State._logoOverlay.fileName = f.name;
-    State._logoOverlay._file = f;
     const nameEl = document.getElementById('logoOverlayFileName');
-    if (nameEl) nameEl.textContent = f.name;
-    toast(`Logo: ${f.name} loaded`);
+
+    // IMPORTANT: blob: URLs (URL.createObjectURL) are scoped to the renderer
+    // process that created them. The Projection window and Live Display
+    // preview are separate contexts reached via IPC, so a blob URL sent to
+    // them can't be resolved — it shows a broken image. A base64 data URL
+    // carries the actual image bytes, so it works across any window.
+    // (Video files are large; blob URL is kept for video since it stays
+    // within the same window in that code path, but images always convert.)
+    if (isVideo) {
+      const url = URL.createObjectURL(f);
+      State._logoOverlay.src = url;
+      State._logoOverlay.type = 'video';
+      State._logoOverlay.fileName = f.name;
+      State._logoOverlay._file = f;
+      if (nameEl) nameEl.textContent = f.name;
+      toast(`Logo: ${f.name} loaded`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      State._logoOverlay.src = reader.result; // data:image/...;base64,...
+      State._logoOverlay.type = 'image';
+      State._logoOverlay.fileName = f.name;
+      State._logoOverlay._file = f;
+      if (nameEl) nameEl.textContent = f.name;
+      toast(`Logo: ${f.name} loaded`);
+      if (State._logoOverlay.visible) _sendLogoOverlay();
+    };
+    reader.onerror = () => toast('⚠ Could not read logo file');
+    reader.readAsDataURL(f);
   };
   inp.click();
 }
@@ -7691,11 +7718,14 @@ function _sendLogoOverlay() {
     draggable: ov.position === 'custom'
   };
   if (window.electronAPI?.sendLogoOverlay) {
-    window.electronAPI.sendLogoOverlay(payload);
+    window.electronAPI.sendLogoOverlay(payload);  // Projection window (file:// origin) — keep as-is
   } else if (State.isProjectionOpen) {
     _webPostRenderState('logo-overlay', payload);
   }
-  _updateLiveLogoPreview(payload);
+  // The Live Display preview lives in THIS window (http://127.0.0.1 origin),
+  // which cannot load file:// resources regardless of CSP. Use previewSrc
+  // (served through the app's own local HTTP server) when available.
+  _updateLiveLogoPreview({ ...payload, src: ov.previewSrc || ov.src || null });
 }
 
 function _updateLiveLogoPreview(payload) {
@@ -7848,7 +7878,7 @@ function _handleLogoOverlayDragUpdate(data) {
     });
     _updateLiveLogoPreview({
       visible: State._logoOverlay.visible,
-      src: State._logoOverlay.src,
+      src: State._logoOverlay.previewSrc || State._logoOverlay.src,
       type: State._logoOverlay.type,
       xPct: State._logoOverlay.xPct,
       yPct: State._logoOverlay.yPct,
@@ -9096,19 +9126,50 @@ function startDeepgramStream() {
 
   stopDeepgramSocket(); // close any existing
 
-  // Deepgram streaming URL — Nova-2 model, English, smart formatting
-  const url = `wss://api.deepgram.com/v1/listen?` + new URLSearchParams({
-    model:             'nova-2',
+  // Deepgram streaming URL — Nova-3 model, English, smart formatting
+  const params = new URLSearchParams({
+    model:             'nova-3',
     language:          'en-US',
     smart_format:      'true',
     punctuate:         'true',
     interim_results:   'true',
+    // Lowered from 1200ms to reduce finalization delay during continuous
+    // preaching. NOTE: an earlier attempt also added an explicit
+    // `endpointing` param alongside this, which caused Deepgram to stop
+    // transcribing entirely (likely an invalid param combination rejected
+    // at connection time) — reverted. Only touch this value in isolation
+    // and confirm a real connection still works before layering more changes.
     utterance_end_ms:  '1200',
     vad_events:        'true',
     encoding:          'linear16',
     sample_rate:       '16000',
     channels:          '1',
   });
+
+  // ── Bible Keyterm Prompting (Nova-3 only) ──────────────────────────────────
+  // Boosts recognition of Bible book names + proper nouns that Deepgram commonly
+  // mishears. Kept FOCUSED on purpose: Deepgram warns that too many keyterms
+  // cause overfitting / forced matches, so we only include terms that are
+  // (a) genuinely error-prone and (b) high-value for verse detection.
+  // Common, easily-recognized names (John, Mark, Acts, Paul, David) are omitted.
+  const DG_BIBLE_KEYTERMS = [
+    // Frequently-mangled book names
+    'Hebrews', 'Habakkuk', 'Zephaniah', 'Zechariah', 'Haggai', 'Malachi',
+    'Nehemiah', 'Obadiah', 'Nahum', 'Philemon', 'Colossians', 'Philippians',
+    'Thessalonians', 'Galatians', 'Ephesians', 'Corinthians', 'Deuteronomy',
+    'Leviticus', 'Lamentations', 'Ecclesiastes', 'Ezekiel',
+    'Hosea', 'Joel', 'Amos', 'Micah', 'Jonah', 'Titus', 'Jude',
+    // Proper nouns commonly misheard in preaching
+    'Jesus', 'Moses', 'Abraham', 'Isaac', 'Jacob', 'Joseph', 'Elijah',
+    'Elisha', 'Isaiah', 'Jeremiah', 'Melchizedek', 'Nebuchadnezzar',
+    'Zacchaeus', 'Bartimaeus', 'Nicodemus', 'Barabbas', 'Pharisees',
+    'Sadducees', 'Gethsemane', 'Golgotha', 'Calvary', 'Pentecost',
+  ];
+  for (const term of DG_BIBLE_KEYTERMS) {
+    params.append('keyterm', term);
+  }
+
+  const url = `wss://api.deepgram.com/v1/listen?` + params.toString();
 
   try {
     deepgramSocket = new WebSocket(url, ['token', key]);
@@ -9546,7 +9607,9 @@ async function generateSermonNotes() {
   output.textContent = '⏳ Generating notes with AI…';
 
   try {
-    const notes = await AIDetection.generateSermonNotes(transcriptText);
+    // Pass key directly — ensures current key is used even if init() ran before settings loaded
+    const currentKey = State.settings.apiKey || State.settings.claudeApiKey || '';
+    const notes = await AIDetection.generateSermonNotes(transcriptText, '', currentKey);
     State.generatedNotes = notes;
 
     let formatted = '';
@@ -9574,7 +9637,21 @@ async function generateSermonNotes() {
     output.textContent = formatted || JSON.stringify(notes, null, 2);
     toast('✦ Sermon notes generated');
   } catch (e) {
-    output.textContent = `⚠ Error: ${e.message}`;
+    console.error('[SermonNotes]', e);
+    const msg = e.message || 'Unknown error';
+    if (msg.includes('API key') || msg.includes('401') || msg.includes('invalid_api_key')) {
+      output.textContent = '⚠ Invalid or missing Claude API key. Go to Settings → AI & Transcription and check your API key.';
+    } else if (msg.includes('403') || msg.includes('permission')) {
+      output.textContent = '⚠ Claude API key does not have permission. Check your API key at console.anthropic.com.';
+    } else if (msg.includes('429') || msg.includes('rate')) {
+      output.textContent = '⚠ Claude API rate limit reached. Please wait a moment and try again.';
+    } else if (msg.includes('529') || msg.includes('overloaded')) {
+      output.textContent = '⚠ Claude API is temporarily overloaded. Please try again in a moment.';
+    } else if (msg.includes('model') || msg.includes('not_found') || msg.includes('404')) {
+      output.textContent = '⚠ The AI model is unavailable on your API plan. This usually means the model was updated — please update AnchorCast to the latest version.';
+    } else {
+      output.textContent = `⚠ Error generating notes: ${msg}`;
+    }
   }
 }
 
@@ -12536,18 +12613,27 @@ async function confirmSavePreset() {
       visible: lo.visible !== false,
     };
     try {
-      const resp = await fetch(lo.src);
-      const blob = await resp.blob();
-      const reader = new FileReader();
-      const b64 = await new Promise((resolve, reject) => {
-        reader.onload = () => {
-          const dataUrl = reader.result;
-          resolve(dataUrl.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      overlayData.fileData = b64;
+      if (lo._file instanceof File) {
+        // Freshly-picked file this session — read it directly. Avoids fetch(),
+        // which is subject to CSP connect-src and silently fails for file://
+        // or otherwise-restricted URLs, dropping the logo from the preset.
+        const b64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(lo._file);
+        });
+        overlayData.fileData = b64;
+      } else if (lo.savedPath) {
+        // Logo was carried over from a previously-loaded preset (no File object
+        // available this session) — pass the existing asset path through so the
+        // main process can copy it into this preset's own asset file.
+        overlayData.savedPath = lo.savedPath;
+      } else if (lo.src && lo.src.startsWith('data:')) {
+        // Fallback: src is already a data URL (rare path) — extract directly,
+        // no network fetch needed.
+        overlayData.fileData = lo.src.split(',')[1] || '';
+      }
     } catch(e) {
       console.warn('Could not read logo overlay file for preset', e);
     }
@@ -12635,19 +12721,30 @@ async function loadPreset(preset) {
     try {
       const lo = preset.logoOverlay;
       let src = lo.src || '';
+      let previewSrc = '';
       if (lo.savedPath) {
         if (!window.electronAPI?.isWeb) {
-          // Ensure file:/// with three slashes for absolute paths (required on Windows)
+          // Ensure file:/// with three slashes for absolute paths (required on Windows).
+          // This file:// URL is used for the Projection window, which loads via
+          // file:// itself (loadFile) — same-scheme access works fine there.
           const normalized = lo.savedPath.replace(/\\/g, '/');
           src = normalized.startsWith('/') ? 'file://' + normalized : 'file:///' + normalized;
+          // The main window (this document) loads over http://127.0.0.1:PORT,
+          // and Chromium blocks file:// access from an http-origin page
+          // regardless of CSP. Serve the SAME file through the app's local
+          // renderer HTTP server instead, using this page's own origin.
+          const fileName = lo.savedPath.split(/[\\\/]/).pop();
+          previewSrc = window.location.origin + '/preset-assets/' + encodeURIComponent(fileName);
         } else {
           const fileName = lo.savedPath.split(/[\\\/]/).pop();
           src = '/preset-assets/' + encodeURIComponent(fileName);
+          previewSrc = src;
         }
       }
       if (!src && lo.fileData) {
         const mimeType = (lo.type === 'image') ? 'image/png' : 'video/mp4';
         src = 'data:' + mimeType + ';base64,' + lo.fileData;
+        previewSrc = src; // data: URLs work identically in any window/context
       }
       console.log('[Preset] Logo src:', src ? src.substring(0, 80) : '(empty)');
       const posDefaults = { 'top-left': [5,5], 'top-right': [95,5], 'bottom-left': [5,95], 'bottom-right': [95,95], 'center': [50,50] };
@@ -12655,6 +12752,7 @@ async function loadPreset(preset) {
       const defaults = posDefaults[pos] || [95,5];
       State._logoOverlay = {
         src,
+        previewSrc: previewSrc || src,  // HTTP-servable URL for the Live Display preview (mainWindow)
         type: lo.type || 'image',
         fileName: lo.fileName || 'logo.png',
         position: pos,
@@ -12663,6 +12761,8 @@ async function loadPreset(preset) {
         sizePct: lo.sizePct || 15,
         opacity: lo.opacity ?? 100,
         visible: lo.visible !== false,
+        savedPath: lo.savedPath || null,  // carried forward so re-saving under a new preset still has the asset
+        _file: null,                       // no fresh File object when restored from a preset
       };
       if (src) {
         _sendLogoOverlay();

@@ -7,13 +7,14 @@ window.AIDetection = (() => {
   let onDetection   = null;
   let aiEnabled     = true;   // controls only the online Claude AI — offline always runs
   let debounceTimer = null;
+  let lastAIFireTime = 0;  // last time the Claude detection call actually fired
   let detectionCache = new Map();
   let recentEmits    = new Map();
   let learnedPhrases = [];
 
-  // Rolling window — 8 lines gives ~24s of context
-  // Longer window helps catch scripture embedded mid-prayer
-  const WINDOW_SIZE = 8;
+  // Rolling window — 6 lines gives ~18s of context, enough for cross-chunk refs
+  // without accumulating too much stale text that causes false positives
+  const WINDOW_SIZE = 6;
   let recentLines = [];
   let lastWindowHash = '';
 
@@ -22,7 +23,12 @@ window.AIDetection = (() => {
   // "verse 43" is connected back to John 11 → John 11:43.
   let lastBookChapter = null;  // { book, chapter, timestamp }
   let lastEmittedVerse = null;  // { book, chapter, verse, timestamp }
-  const LAST_CONTEXT_TTL = 90000; // 90s — context expires after this
+  const LAST_CONTEXT_TTL = 480000; // 8 minutes — expository preaching often revisits
+  // a chapter/verse reference several minutes after it was first announced
+  // (teaching through surrounding context before returning to "verse 12").
+  // 90s was measured to be too short: real sermons average ~10s/line, so a
+  // preacher easily goes 4-5 minutes between naming a chapter and later
+  // saying a bare "verse 12" that should still connect to it.
 
 
   async function init(key, callback) {
@@ -183,31 +189,10 @@ window.AIDetection = (() => {
       const verseText = window.BibleDB.getVerse(bibleRef.book, ch, v || 1);
       if (!verseText) continue;
       if (results.some(r => r.book === bibleRef.book && r.chapter === ch && r.verse === (v || 1))) continue;
-      // Guard: "Genesis 5 and 6" — two chapters connected by 'and' without
-      // a verse keyword is a CHAPTER RANGE announcement, not Book 5:6.
-      // Detect by checking if the match text contains "and N" as the verse
-      // and no "verse" keyword preceded the number.
-      const matchedText = m[0] || '';
-      const hasVerseKeyword = /\bverses?\s/i.test(matchedText) || /\bv\.?\s*\d/i.test(matchedText);
-      const isChapterRange = !hasVerseKeyword && /\band\s+\d/i.test(matchedText) && !v;
-      // Also suppress: verse captured was literally from "and N" pattern with no verse keyword
-      const verseFromAnd = !hasVerseKeyword && m[3] && /^(and\s+)?\d+$/.test(m[3].trim()) && !v;
-      if (isChapterRange || verseFromAnd) {
-        // Treat as chapter-only — emit verse 1 but with very low confidence
-        // so the navigation buffer + dedup can suppress it
-        results.push({
-          bookIdx: BOOK_NAMES[bookStr], book: bibleRef.book, chapter: ch, verse: 1,
-          ref: `${bibleRef.book} ${ch}:1`,
-          confidence: 0.60, type: 'direct',
-          _chapterOnly: true, _chapterRange: true,
-        });
-        continue;
-      }
-
       results.push({
         bookIdx: BOOK_NAMES[bookStr], book: bibleRef.book, chapter: ch, verse: v || 1,
         ref: `${bibleRef.book} ${ch}:${v || 1}`,
-        confidence: v ? 0.95 : 0.92, type: 'direct',
+        confidence: v ? 0.95 : 0.95, type: 'direct',
         _chapterOnly: !v,
       });
     }
@@ -431,7 +416,6 @@ window.AIDetection = (() => {
     /the scripture tells? (?:me|us)/i,
     /according to the scripture/i,
     /according to the bible/i,
-    /according to/i,
     /open to the book/i,
     /the book of/i,
     /it is written/i,
@@ -457,11 +441,14 @@ window.AIDetection = (() => {
         if (after.length > bestPostTrigger.length) bestPostTrigger = after;
       }
     }
-    if (!bestPostTrigger || bestPostTrigger.split(/\s+/).length < 5) return [];
+    // Require a longer, more distinctive snippet before searching — short
+    // generic fragments ("the flesh. Spirit.") match many unrelated verses
+    // that happen to share common words, causing false positives.
+    if (!bestPostTrigger || bestPostTrigger.split(/\s+/).length < 8) return [];
     const snippet = bestPostTrigger.slice(0, 180);
     const results = window.BibleDB.searchVerses(snippet, 'KJV', 2);
     return results
-      .filter(r => r.score >= 12)
+      .filter(r => r.score >= 20)
       .map(r => ({
         book: r.book, chapter: r.chapter, verse: r.verse, ref: r.ref,
         text: r.text, type: 'content', confidence: Math.min(0.62 + (r.score * 0.02), 0.82),
@@ -472,10 +459,10 @@ window.AIDetection = (() => {
   async function detectWithClaude(windowText) {
     if (!apiKey) return [];
 
-    // Strip repetitive prayer loops that flood the window and bury scripture
-    // e.g. "In the name of Jesus." × 20 during intercession
+    // Collapse repetitive prayer loops so they don't flood the detection window
+    // and bury actual scripture. e.g. "In the name of Jesus." × 20 during intercession.
     const cleanText = windowText
-      .replace(/(\bin the (precious |)name of (the Lord |)Jesus(?: Christ)?[.,]?\s*){3,}/gi, 'In the name of Jesus. ')
+      .replace(/(\bin the (?:precious )?name of (?:the Lord )?Jesus(?: Christ)?[.,]?\s*){3,}/gi, 'In the name of Jesus. ')
       .replace(/(\bin Jesus(?: precious)? name[.,]?\s*){3,}/gi, 'In Jesus name. ')
       .replace(/(\bamen[.,]?\s*){3,}/gi, 'Amen. ')
       .replace(/(\bhallelujah[.,]?\s*){3,}/gi, 'Hallelujah. ')
@@ -487,39 +474,14 @@ window.AIDetection = (() => {
     if (detectionCache.has(cacheKey)) return detectionCache.get(cacheKey);
 
     const prompt = `You are a Bible verse detector for a live church sermon app.
-The preacher speaks in a West African Pentecostal style — verses are often paraphrased, split across sentences, or delivered with congregation responses ("Hallelujah", "Amen") in between.
 
-Detect ANY of the following:
-- Direct quotes, even partial or mid-sentence
-- Paraphrases of well-known verses (e.g. "seek me with all your heart" = Jeremiah 29:13)
-- Verbal references like "turn to John 3", "as Paul wrote in Romans 8", "Genesis chapter 17"
-- Thematic phrases that clearly identify a specific verse
-- References named explicitly with book+chapter or book+chapter+verse
+A preacher may quote, paraphrase, or verbally reference Bible verses. Detect any:
+- Direct quotes (even partial)
+- Paraphrases of well-known verses
+- Verbal mentions like "turn to John 3" or "as Paul wrote in Romans 8"
+- Thematic references that clearly point to a specific verse
 
-Key verses common in this preaching context to watch for:
-- "seek me / find me / all your heart" → Jeremiah 29:13
-- "walk before me / be blameless / be perfect" → Genesis 17:1
-- "eye has not seen / ear has not heard" → 1 Corinthians 2:9
-- "abide in me / bear fruit / branch / vine" → John 15:4-5
-- "that I may know him" → Philippians 3:10
-- "this is eternal life / that they may know you" → John 17:3
-- "the secret of the Lord / those who fear him" → Psalm 25:14
-- "my soul thirsts / earnestly I seek" → Psalm 63:1
-- "righteous shall flourish / palm tree / cedar of Lebanon / fresh and flourishing / old age" → Psalm 92:12-14
-- "as the rain / so shall my word / not return void / performed / intended" → Isaiah 55:10-11
-- "treasures of darkness / hidden riches / secret places" → Isaiah 45:3
-- "ask for the old paths / good way / rest for your soul" → Jeremiah 6:16
-- "be fruitful / multiply / fill the earth / have dominion" → Genesis 1:28
-- "those against you shall be as nothing / shall perish" → Isaiah 41:11-12
-- "wisdom is the principal thing" → Proverbs 4:7
-- "surely there is an end / expectation of the righteous not cut off" → Proverbs 23:18
-- "say to the righteous it shall be well" → Isaiah 3:10
-- "ask / seek / knock / door opened" → Matthew 7:7-8
-- "call unto me / great and mighty things" → Jeremiah 33:3
-- "behold the days come / perform that good word" → Jeremiah 33:14
-- "blessed be the Lord God of our salvation" → Psalm 68:19
-
-TRANSCRIPT (last ~25 seconds):
+TRANSCRIPT (last ~25 seconds of sermon):
 "${cleanText}"
 
 Respond ONLY with a JSON array. Each detected verse:
@@ -622,21 +584,33 @@ Return [] if nothing detected. No markdown, no extra text.`;
     // a book, connect it to the most recently detected book+chapter context.
     if (lastBookChapter && (Date.now() - lastBookChapter.timestamp) < LAST_CONTEXT_TTL) {
       const lower = cleanLine.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-      const spokenWord = '(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)';
+      // IMPORTANT: list longer words first (fourteen before four) so the alternation
+      // doesn't match "four" inside "fourteen". \b also guards the boundary.
+      const spokenWord = '(?:eighteen|nineteen|thirteen|fourteen|fifteen|sixteen|seventeen|eleven|twelve|twenty|thirty|forty|fifty|sixty|three|seven|eight|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|four|five|nine|one|two|six|ten)';
       const numToken = `(?:\\d+|${spokenWord}(?:\\s+${spokenWord})?)`;
-      const orphanRe = new RegExp(`(?:verses?|v\\.?)\\s+(?:number\\s+)?(${numToken})(?:\\s+(?:of|and|to|through)\\s+(${numToken}))?`, 'gi');
+      const orphanRe = new RegExp(`(?:verses?|v\\.?)\\s+(?:number\\s+)?(${numToken})\\b(?:\\s+(?:of|and|to|through)\\s+(${numToken})\\b)?`, 'gi');
       let om;
       while ((om = orphanRe.exec(lower)) !== null) {
-        const v = wordsToNumber(om[1]?.trim());
-        if (!v) continue;
-        if (directAll.some(d => d.verse === v && d.book === lastBookChapter.book && d.chapter === lastBookChapter.chapter)) continue;
-        const verseText = window.BibleDB?.getVerse(lastBookChapter.book, lastBookChapter.chapter, v);
-        if (!verseText) continue;
-        emit({
-          book: lastBookChapter.book, chapter: lastBookChapter.chapter, verse: v,
-          ref: `${lastBookChapter.book} ${lastBookChapter.chapter}:${v}`,
-          text: verseText, type: 'direct', confidence: 0.93,
-        });
+        const v1 = wordsToNumber(om[1]?.trim());
+        if (!v1) continue;
+        const v2 = om[2] ? wordsToNumber(om[2].trim()) : null;
+        // Build the list of verses to emit: just v1, or the small range v1..v2
+        const verses = [];
+        if (v2 && v2 > v1 && (v2 - v1) <= 5) {
+          for (let vv = v1; vv <= v2; vv++) verses.push(vv);
+        } else {
+          verses.push(v1);
+        }
+        for (const v of verses) {
+          if (directAll.some(d => d.verse === v && d.book === lastBookChapter.book && d.chapter === lastBookChapter.chapter)) continue;
+          const verseText = window.BibleDB?.getVerse(lastBookChapter.book, lastBookChapter.chapter, v);
+          if (!verseText) continue;
+          emit({
+            book: lastBookChapter.book, chapter: lastBookChapter.chapter, verse: v,
+            ref: `${lastBookChapter.book} ${lastBookChapter.chapter}:${v}`,
+            text: verseText, type: 'direct', confidence: 0.93,
+          });
+        }
       }
     }
 
@@ -684,12 +658,26 @@ Return [] if nothing detected. No markdown, no extra text.`;
       // ── ONLINE MODE: let Claude handle detection ──
       // Skip keyword/verbal — they produce false positives and Claude
       // does the same job with contextual understanding.
-      debounceTimer = setTimeout(async () => {
+      //
+      // IMPORTANT: pure debounce (wait for a pause) starves during continuous
+      // preaching — Deepgram finalizes lines every ~1-3s, which keeps
+      // resetting a 2s debounce and can delay detection indefinitely until a
+      // natural pause occurs. A max-wait guarantees detection still fires
+      // periodically even during uninterrupted speech.
+      const MAX_AI_WAIT = 4000;
+      const timeSinceLastFire = Date.now() - lastAIFireTime;
+      const fireAIDetection = async () => {
+        lastAIFireTime = Date.now();
         const triggered = detectTriggeredContent(snapshot);
         for (const t of triggered) emit(t);
         const aiResults = await detectWithClaude(snapshot);
         for (const a of aiResults) emit(a);
-      }, 2000);
+      };
+      if (timeSinceLastFire >= MAX_AI_WAIT) {
+        fireAIDetection();
+      } else {
+        debounceTimer = setTimeout(fireAIDetection, 2000);
+      }
     } else {
       // ── OFFLINE MODE: fall back to rule-based methods ──
       const verbal = detectVerbal(windowText);
@@ -725,10 +713,10 @@ Return [] if nothing detected. No markdown, no extra text.`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8192,
         messages: [{ role: 'user', content:
-          `Generate structured sermon notes from this transcript. Capture ALL main points covered — do not limit or truncate the number of points.\n${title ? `Title: ${title}\n` : ''}\nTRANSCRIPT:\n${transcript}\n\nReturn JSON: { title, topic, summary, mainPoints:[{heading,content,scriptures}], keyVerses:[{ref,text}], practicalApplications:[string], closingThought }\n\nInclude every distinct point from the sermon. JSON only, no markdown.`
+          `Generate structured sermon notes from this transcript. Capture ALL main points covered — do not limit or truncate the number of points.\n${title ? `Title: ${title}\n` : ''}\nTRANSCRIPT:\n${transcript}\n\nReturn JSON: { title, topic, summary, mainPoints:[{heading,content,scriptures}], keyVerses:[{ref,text}], practicalApplications:[string], closingThought }\n\nKeep each field concise so the full JSON fits in the response. Include every distinct point. JSON only, no markdown.`
         }],
       }),
     });
@@ -737,8 +725,68 @@ Return [] if nothing detected. No markdown, no extra text.`;
       throw new Error(err?.error?.message || `API error ${response.status}`);
     }
     const data = await response.json();
-    const text = data.content?.[0]?.text || '{}';
-    return JSON.parse(text.replace(/```json|```/g, '').trim());
+    let text = (data.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim();
+
+    // If Claude's response was cut off (stop_reason "max_tokens"), the JSON
+    // may be incomplete. Try a normal parse first, then a repair pass.
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      const repaired = _repairTruncatedJson(text);
+      try {
+        return JSON.parse(repaired);
+      } catch (e2) {
+        // Last resort: surface a clear message instead of a raw parse error
+        if (data.stop_reason === 'max_tokens') {
+          throw new Error('The sermon is very long and the notes were cut off. Try a shorter transcript or generate notes for sections.');
+        }
+        throw new Error('Could not parse the generated notes. Please try again.');
+      }
+    }
+  }
+
+  // Repair JSON that was truncated mid-structure (from a max_tokens cutoff).
+  // Closes any open strings, arrays, and objects so JSON.parse can succeed.
+  function _repairTruncatedJson(s) {
+    let out = s;
+    // Walk the string tracking structure; remember the index of the last
+    // position where the JSON was "balanced enough" to be safely closeable
+    // (i.e. just after a complete value inside an array/object).
+    let inStr = false, esc = false;
+    const stack = [];
+    let lastSafe = -1;  // index AFTER a comma or closing brace/bracket at depth>0
+    for (let i = 0; i < out.length; i++) {
+      const c = out[i];
+      if (esc) { esc = false; continue; }
+      if (c === '\\') { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === '{' || c === '[') stack.push(c);
+      else if (c === '}' || c === ']') { stack.pop(); lastSafe = i + 1; }
+      else if (c === ',') lastSafe = i;  // safe to truncate at a comma
+    }
+    // If we're mid-string or mid-token at the end, cut back to the last safe point
+    if ((inStr || stack.length) && lastSafe > 0) {
+      out = out.slice(0, lastSafe).replace(/,\s*$/, '');
+    }
+    // Recompute open structures on the trimmed string
+    inStr = false; esc = false;
+    const stack2 = [];
+    for (let i = 0; i < out.length; i++) {
+      const c = out[i];
+      if (esc) { esc = false; continue; }
+      if (c === '\\') { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === '{' || c === '[') stack2.push(c);
+      else if (c === '}' || c === ']') stack2.pop();
+    }
+    if (inStr) out += '"';
+    while (stack2.length) {
+      const open = stack2.pop();
+      out += open === '{' ? '}' : ']';
+    }
+    return out;
   }
 
   return {
