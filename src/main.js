@@ -537,6 +537,7 @@ const WHISPER_MODELS = [
   { id: 'tiny.en',  name: 'Tiny English',       size: '~39 MB',  tag: 'Fastest',  hfRepo: 'Systran/faster-whisper-tiny.en',  folder: 'models--Systran--faster-whisper-tiny.en'  },
   { id: 'base.en',  name: 'Base English',        size: '~74 MB',  tag: 'Balanced', hfRepo: 'Systran/faster-whisper-base.en',  folder: 'models--Systran--faster-whisper-base.en'  },
   { id: 'small.en', name: 'Small English',       size: '~244 MB', tag: 'Accurate', hfRepo: 'Systran/faster-whisper-small.en', folder: 'models--Systran--faster-whisper-small.en', bundled: true },
+  { id: 'medium.en',name: 'Medium English',      size: '~769 MB', tag: 'Most Accurate', hfRepo: 'Systran/faster-whisper-medium.en', folder: 'models--Systran--faster-whisper-medium.en' },
   { id: 'tiny',     name: 'Tiny Multilingual',   size: '~39 MB',  tag: 'Fastest',  hfRepo: 'Systran/faster-whisper-tiny',     folder: 'models--Systran--faster-whisper-tiny'     },
   { id: 'base',     name: 'Base Multilingual',   size: '~74 MB',  tag: 'Balanced', hfRepo: 'Systran/faster-whisper-base',     folder: 'models--Systran--faster-whisper-base'     },
   { id: 'small',    name: 'Small Multilingual',  size: '~244 MB', tag: 'Accurate', hfRepo: 'Systran/faster-whisper-small',    folder: 'models--Systran--faster-whisper-small'    },
@@ -1043,6 +1044,16 @@ async function startRendererServer() {
         if (!filePath.startsWith(assetsDir + path.sep) && filePath !== assetsDir) {
           res.writeHead(403); res.end(); return;
         }
+      } else if (urlPath.startsWith('/preset-assets/')) {
+        // Preset logo images are stored on disk with absolute paths, which
+        // mainWindow (loaded over http://127.0.0.1) cannot reach via file://
+        // due to Chromium's cross-origin restriction on http-origin pages
+        // accessing file:// resources — independent of any CSP setting.
+        // Serving them through this same http server sidesteps that entirely.
+        filePath = path.resolve(path.join(PRESETS_ASSETS, urlPath.slice('/preset-assets/'.length)));
+        if (!filePath.startsWith(PRESETS_ASSETS + path.sep) && filePath !== PRESETS_ASSETS) {
+          res.writeHead(403); res.end(); return;
+        }
       } else {
         filePath = path.resolve(path.join(rendererDir, urlPath === '/' ? 'index.html' : urlPath));
         if (!filePath.startsWith(rendererDir + path.sep) && filePath !== rendererDir) {
@@ -1055,8 +1066,10 @@ async function startRendererServer() {
         const mime = {
           '.html':'text/html','.js':'application/javascript',
           '.css':'text/css','.json':'application/json',
-          '.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml',
+          '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.svg':'image/svg+xml',
+          '.gif':'image/gif','.webp':'image/webp',
           '.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff',
+          '.mp4':'video/mp4','.webm':'video/webm',
         }[ext] || 'application/octet-stream';
         res.writeHead(200, {'Content-Type': mime, 'Access-Control-Allow-Origin':'*'});
         res.end(data);
@@ -1598,15 +1611,19 @@ function createProjectionWindow(displayId){
   // Guard: restore projection if Win+D, Win+Tab or taskbar causes it to
   // lose fullscreen or become minimized. Check every 500ms.
   let _projGuardInterval = null;
+  let _projTearingDown = false;  // set when display removed — stops guard fighting the close
   function _startProjGuard() {
     if (_projGuardInterval) return;
     _projGuardInterval = setInterval(() => {
       try {
-        if (!projectionWindow || projectionWindow.isDestroyed()) {
+        if (_projTearingDown || !projectionWindow || projectionWindow.isDestroyed()) {
           clearInterval(_projGuardInterval);
           _projGuardInterval = null;
           return;
         }
+        // Only act if the target display still exists
+        const stillThere = screen.getAllDisplays().some(d => d.id === projectionWindow._targetDisplayId);
+        if (!stillThere) return;
         if (!isSameDisplayAsMain) {
           if (projectionWindow.isMinimized()) {
             projectionWindow.restore();
@@ -1642,6 +1659,11 @@ function createProjectionWindow(displayId){
 
       projectionWindow._lostTargetDisplay = true;
       _projectionLostDisplay = true;
+      // CRITICAL: stop the guard interval NOW — otherwise it fights the close
+      // by calling restore()/setFullScreen() against a display that's gone,
+      // which crashes Electron seconds later.
+      _projTearingDown = true;
+      if (_projGuardInterval) { clearInterval(_projGuardInterval); _projGuardInterval = null; }
       const primaryId  = screen.getPrimaryDisplay().id;
       const remaining  = screen.getAllDisplays();
       // Look for another external display (not the primary/laptop screen)
@@ -1656,6 +1678,10 @@ function createProjectionWindow(displayId){
         projectionWindow._displayHeight = b.height;
         projectionWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
         projectionWindow.setFullScreen(true);
+        // Another display is available — resume guarding it
+        _projTearingDown = false;
+        _projectionLostDisplay = false;
+        _startProjGuard();
         mainWindow?.webContents.send('display-warning',
           { msg: 'Projection moved to another external display.' });
       } else {
@@ -5960,17 +5986,18 @@ let pcmQueue        = [];
 
 // ── PCM pipeline tuning for small.en on CPU ──────────────────────────────────
 // CHUNK SIZE: 4.5s gives Whisper complete sentences with enough context.
-//   Too short (< 3s) → incomplete sentences → more errors and confusion.
-//   Too long (> 6s)  → latency too high for live use.
+//   Shorter chunks (3.5s) fragment phrases mid-sentence and WRECK accuracy —
+//   "One verse one and two" became "Book of Hebrews chapters". Keep at 4.5s.
 // OVERLAP: 0.75s catches boundary words without over-suppressing new content.
-//   Too much overlap (> 1s) → stitching drops valid new lines.
 // RMS GATE: 180 = quiet room background noise threshold.
 //   Raise to 300+ if the mic picks up PA system hum.
 const PCM_FLUSH_SECONDS    = 4.5;
 const PCM_OVERLAP_SECONDS  = 0.75;
 const PCM_MIN_RMS          = 180;
 const PCM_MIN_ACTIVE_RATIO = 0.012;
-const PCM_MAX_QUEUE_CHUNKS = 3;
+// Drop backlog fast — if CPU falls behind, skip old audio rather than lag further.
+// This helps latency WITHOUT hurting accuracy (it only discards stale queued audio).
+const PCM_MAX_QUEUE_CHUNKS = 2;
 
 let lastTranscriptSent = '';
 let lastTranscriptWords = [];
@@ -6154,6 +6181,18 @@ function normalizeTranscriptText(text) {
     [/\bpsalms\b/gi, 'Psalms'],
     [/\bpsalm\b/gi, 'Psalm'],
     [/\brevelations\b/gi, 'Revelation'],
+    // ── Book name mishears (singular/plural, common Whisper errors) ──
+    [/\bbook of hebrew\b/gi, 'book of Hebrews'],
+    [/\bhebrew chapter\b/gi, 'Hebrews chapter'],
+    [/\bthe hebrew\b(?!\s+(?:language|people|nation|text|word|bible))/gi, 'the Hebrews'],
+    [/\bproverb chapter\b/gi, 'Proverbs chapter'],
+    [/\broman chapter\b/gi, 'Romans chapter'],
+    [/\bgalatian chapter\b/gi, 'Galatians chapter'],
+    [/\bephesian chapter\b/gi, 'Ephesians chapter'],
+    [/\bcolossian chapter\b/gi, 'Colossians chapter'],
+    [/\bphilippian chapter\b/gi, 'Philippians chapter'],
+    [/\bcorinthian chapter\b/gi, 'Corinthians chapter'],
+    [/\bthessalonian chapter\b/gi, 'Thessalonians chapter'],
     // ── Biblical word confusions that Whisper commonly mishears ──
     [/\bshall not watch\b/gi, 'shall not want'],
     [/\bshall not wash\b/gi, 'shall not want'],
@@ -6249,8 +6288,102 @@ function normalizeTranscriptText(text) {
     [/\bproverbs chapter four verse.*five to seven\b/gi, 'Proverbs 4:7'],
     [/\bpsalm 71 verse 31\b/gi, 'Psalm 71:21'],  // likely mishear of 71:21
     [/\bgenesis 1.*28\b/gi, 'Genesis 1:28'],
+    // Strip microphone/tech troubleshooting noise that occurs after service
+    [/\bchris got trees got\b.{0,50}/gi, ''],
+    [/\bhe'?s got \d\.?\s*/gi, ''],
+    [/\b(bb\s*){3,}/gi, ''],  // strip "bb bb bb" stutter loops from mic feedback
+    [/\b(praise god\.?\s*){3,}/gi, 'Praise God. '],
+    // Corrections from Sunday service — Psalm 1, Job 22, Isaiah 30, Romans 8
+    [/\bare you sick me\b/gi, 'are you seeking me'],
+    [/\bwhere you sick me\b/gi, 'when you seek me'],
+    [/\bwhen you seek me, are you sick me\b/gi, 'when you seek me wholeheartedly'],
+    [/\byou will fight him\b/gi, 'you will find him'],
+    [/\bwe will fight him\b/gi, 'we will find him'],
+    [/\bwhen we seek him.*fight him\b/gi, 'when we seek him we will find him'],
+    [/\bart pizza\b/gi, 'is his delight'],
+    [/\bin the seat of discomfort\b/gi, 'in the seat of the scornful'],
+    [/\bthe seat of discomfort\b/gi, 'the seat of the scornful'],
+    [/\bwalketh not in the council\b/gi, 'walketh not in the counsel'],
+    [/\bpsalm 92 verse 20 to 14\b/gi, 'Psalm 92 verses 12 to 14'],
+    [/\bisaiah.*chapter ten two\b/gi, 'Isaiah 30:21'],
+    [/\bchapter ten two\b/gi, 'Isaiah 30:21'],
+    [/\bromans chapter five.*chapter eight.*sixteen\b/gi, 'Romans 8:15-16'],
+    [/\bromans chapter.*eight or sixteen\b/gi, 'Romans 8:15-16'],
+    [/\bspirit of an ocean\b/gi, 'spirit of adoption'],
+    [/\bspirit you receive is a spirit of an ocean\b/gi, 'spirit of adoption whereby we cry Abba Father'],
+    [/\bjob.*verse 21\b/gi, 'Job 22:21'],
+    [/\bacquaint yourself.*with him.*be at peace\b/gi, 'acquaint yourself with him and be at peace'],
+    [/\banthea.*anthea peace\b/gi, 'and he shall be at peace'],
+    [/\blaid open your heart\b/gi, 'lay up his words in your heart'],
+    [/\byou have forsaken your first love\b/gi, 'thou hast left thy first love'],
+    [/\byou are sick missus yali\b/gi, 'you seek me wholeheartedly'],
+    [/\bin old age.*fresh and flourish\b/gi, 'in old age they shall be fat and flourishing'],
+    [/\bthe blessings are the reward of a deeper relationship\b/gi, 'the blessing is the reward of a deeper relationship with God'],
+    // Romans 6-8 teaching corrections
+    [/\bthe wages of cbnx\b/gi, 'the wages of sin'],
+    [/\bwages of cbn\b/gi, 'wages of sin'],
+    [/\bto those who are in crisis\b/gi, 'to those who are in Christ'],
+    [/\bthose who are in crisis\b/gi, 'those who are in Christ'],
+    [/\bin crisis jesus\b/gi, 'in Christ Jesus'],
+    [/\bbody of text\b/gi, 'body of death'],
+    [/\bthis body of text\b/gi, 'this body of death'],
+    [/\bwretched bird\b/gi, 'wretched man'],
+    [/\buncle wretched brother\b/gi, 'O wretched man'],
+    [/\bno more than they\b/gi, 'no condemnation'],
+    [/\bno more manipulation\b/gi, 'no condemnation'],
+    [/\bset me free.*from the power of sin and death\b/gi, 'made me free from the law of sin and death'],
+    [/\bfaith covered by hearing\b/gi, 'faith cometh by hearing'],
+    [/\bfaith comes by hearing and hearing\b/gi, 'faith cometh by hearing, and hearing by the word of God'],
+    [/\bjustification by faith.*filtering over sick\b/gi, 'justification by faith and victory over sin'],
+    [/\bseed shall no longer reign\b/gi, 'sin shall no longer reign'],
+    [/\bsin shall no longer have dominion\b/gi, 'sin shall not have dominion over you'],
+    [/\bdead to the law.*through the body of christ\b/gi, 'become dead to the law by the body of Christ'],
+    [/\blet your mind be renewed\b/gi, 'be ye transformed by the renewing of your mind'],
+    [/\bcarnally minded.*cannot please go\b/gi, 'carnally minded cannot please God'],
+    [/\bnobody that is carnally minded\b/gi, 'they that are in the flesh cannot please God'],
+    // Hebrews 1:1-2 teaching corrections
+    [/\bgod has been spoken\b/gi, 'God spake in time past'],
+    [/\bin the past, god.*spoken.*by prophet\b/gi, 'God who at sundry times spake in time past unto the fathers by the prophets'],
+    [/\bin this last days is speaking.*by his son\b/gi, 'hath in these last days spoken unto us by his Son'],
+    [/\bgod in this last days is speaking\b/gi, 'hath in these last days spoken unto us by his Son'],
+    [/\bwhom we are appointed the heirs of all things\b/gi, 'whom he hath appointed heir of all things'],
+    [/\bpause be at a point in the ears of\b/gi, 'appointed heir of all things'],
+    [/\bappoint(?:ed|ing) in the ears of\b/gi, 'appointed heir of all things'],
+    [/\bthe heirs of all things\b/gi, 'appointed heir of all things'],
+    [/\btwin of man,? or things\b/gi, 'in divers manners'],
+    [/\bin divers manner\b/gi, 'in divers manners'],
+    [/\bby whom he also made the wood\b/gi, 'by whom also he made the worlds'],
+    [/\bby whom he also made the world\b/gi, 'by whom also he made the worlds'],
+    [/\bhe also made the wood\b/gi, 'he made the worlds'],
+    // John 16:13 — "Spirit of truth" mishears
+    [/\bspirit of fruit\b/gi, 'Spirit of truth'],
+    [/\bspirit of truth (?:be gone|will come|is gone|we go|will go)\b/gi, 'Spirit of truth is come'],
+    [/\bwhen the spirit of (?:truth|fruit)\b.*\b(?:come|gone|go)\b/gi, 'when the Spirit of truth is come'],
+    [/\bguide you into our truth\b/gi, 'guide you into all truth'],
+    [/\bbite you into our truth\b/gi, 'guide you into all truth'],
+    [/\binvite you into our truth\b/gi, 'guide you into all truth'],
+    [/\bwe invite you into (?:our|all) truth\b/gi, 'he will guide you into all truth'],
+    [/\bif we (?:guide|bite|invite) you into (?:our|all) truth\b/gi, 'he will guide you into all truth'],
+    // Hebrews 1:2 additional mishears
+    [/\bappointed the heirs of all these\b/gi, 'appointed heir of all things'],
+    [/\bheirs of all these by whom\b/gi, 'appointed heir of all things, by whom'],
+    [/\bto us by song\b/gi, 'unto us by his Son'],
+    [/\bspeaking through his son to us by song\b/gi, 'spoken unto us by his Son'],
   ];
   for (const [pattern, replacement] of fixes) out = out.replace(pattern, replacement);
+
+  // ── Normalize spoken ordinal book prefixes: "second Corinthians" / "second,
+  // Corinthians" (comma from a mid-sentence stumble) → "2 Corinthians", so the
+  // verbal reference converter recognizes the book at all.
+  out = out
+    .replace(/\bfirst,?\s+(Corinthians|Peter|John|Timothy|Thessalonians|Samuel|Kings|Chronicles)\b/gi, '1 $1')
+    .replace(/\bsecond,?\s+(Corinthians|Peter|John|Timothy|Thessalonians|Samuel|Kings|Chronicles)\b/gi, '2 $1')
+    .replace(/\bthird,?\s+(John)\b/gi, '3 $1');
+
+  // ── Collapse a stuttered/repeated number word before verbal ref parsing.
+  // e.g. "chapter five five verse seven" (preacher repeated himself) would
+  // otherwise parse as chapter 5 verse 5, losing "verse seven" entirely.
+  out = out.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\s+\1\b/gi, '$1');
 
   // ── Verbal verse reference conversion: "James one twelve" → "James 1:12" ──
   // Applies BEFORE dedup so the ref survives
@@ -6312,16 +6445,54 @@ const _BIBLE_BOOKS_FOR_VERBAL = [
 
 function _convertVerbalRefs(text) {
   let out = text;
+
+  // ── Psalm 3-digit chapter normalization ─────────────────────────────────
+  // Psalms is the only book with >100 chapters, so when a preacher says a
+  // 3-digit chapter like "Psalm 115" quickly, Deepgram/Whisper often splits
+  // it into "Psalm 1 fifteen" or "Psalm 1 15" (single leading digit + a
+  // separate 1-99 word/number). Without this, the general parser reads it
+  // as chapter 1, verse 15 — wrong book location entirely. This only
+  // applies to Psalm(s) since no other book goes past 150 chapters this way.
+  out = out.replace(
+    /\b(Psalms?)\s+([1])\s+(fifteen|sixteen|seventeen|eighteen|nineteen|thirteen|fourteen|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})\b(?!\s*[,.]?\s*(?::|verse|verses|vs\.?|v\.?))/gi,
+    (match, bk, digit, rest) => {
+      const restNum = _parseWordNum(rest.trim());
+      if (restNum == null) return match;
+      const combined = parseInt(digit, 10) * 100 + restNum;
+      if (combined >= 100 && combined <= 150) return `${bk} ${combined}`;
+      return match;
+    }
+  );
+
   for (const book of _BIBLE_BOOKS_FOR_VERBAL) {
     const escaped = book.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Full ref: "Book 3:5", "Book three verse five", "Book chapter 33, verse 14"
+    // NOTE: when a comma/period sits between chapter and the next number,
+    // REQUIRE an explicit "verse"/"chapter"/":" keyword rather than allowing
+    // a bare space to count as the separator. Without this, "2 Chronicles
+    // 26, 2 Chronicles twenty six five" (preacher repeating the reference)
+    // would swallow the leading "2" of the second mention as if it were a
+    // verse number for the first ("26:2") — a comma followed only by
+    // whitespace is NOT a reliable verse signal, but comma + "verse 5" is.
     const re = new RegExp(
-      `\\b(${escaped})\\s+(${_NUM_PAT})\\s+(${_NUM_PAT})\\b`,
+      `\\b(${escaped})\\s+(?:chapter\\s+)?(${_NUM_PAT})(?:\\s*[,.]\\s*(?::|verse|verses|vs\\.?|v\\.?)|\\s*(?::|verse|verses|vs\\.?|v\\.?|\\s))\\s*(${_NUM_PAT})\\b`,
       'gi'
     );
     out = out.replace(re, (match, bk, chStr, vsStr) => {
       const ch = _parseWordNum(chStr.trim());
       const vs = _parseWordNum(vsStr.trim());
       if (ch && vs && ch <= 150 && vs <= 176) return `${bk} ${ch}:${vs}`;
+      return match;
+    });
+    // Chapter-only: "Book chapter 33" → "Book 33" (so chapter-only detection fires)
+    // Only when the word "chapter" is explicit, to avoid false positives.
+    const reCh = new RegExp(
+      `\\b(${escaped})\\s+chapter\\s+(${_NUM_PAT})\\b(?!\\s*[,.]?\\s*(?::|verse|verses|vs\\.?|v\\.?|\\d))`,
+      'gi'
+    );
+    out = out.replace(reCh, (match, bk, chStr) => {
+      const ch = _parseWordNum(chStr.trim());
+      if (ch && ch <= 150) return `${bk} ${ch}`;
       return match;
     });
   }
@@ -8169,6 +8340,27 @@ ipcMain.handle('save-preset', async (_, preset) => {
       fs.writeFileSync(dest, buf);
       preset.logoOverlay.savedPath = dest;
       delete preset.logoOverlay.fileData;
+    } else if (preset.logoOverlay?.savedPath) {
+      // Logo was carried forward from a previously-loaded preset (renderer had
+      // no fresh File object this session). Copy the existing asset into this
+      // preset's own file so each preset owns an independent copy — otherwise
+      // deleting one preset would remove the logo image out from under another.
+      try {
+        const srcPath = path.resolve(preset.logoOverlay.savedPath);
+        const rawExt = path.extname(preset.logoOverlay.fileName || srcPath || '.png') || '.png';
+        const ext = rawExt.replace(/[^a-zA-Z0-9.]/g, '');
+        const safeName = `preset_logo_${safeId}${ext}`;
+        const dest = path.resolve(path.join(PRESETS_ASSETS, safeName));
+        if (dest === srcPath) {
+          // Already the correct file for this preset — nothing to do.
+          preset.logoOverlay.savedPath = dest;
+        } else if (dest.startsWith(PRESETS_ASSETS) && fs.existsSync(srcPath)) {
+          fs.copyFileSync(srcPath, dest);
+          preset.logoOverlay.savedPath = dest;
+        } else {
+          delete preset.logoOverlay.savedPath;
+        }
+      } catch(_) { delete preset.logoOverlay.savedPath; }
     } else if (preset.logoOverlay) {
       delete preset.logoOverlay.savedPath;
       const existing = presets.find(p => p.id === safeId);
