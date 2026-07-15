@@ -1071,7 +1071,7 @@ footer{
 
 <!-- HERO -->
 <section class="hero">
-  <div class="pill"><div class="pill-dot"></div>Free &amp; Open Source · v1.4.0 · Windows &amp; macOS</div>
+  <div class="pill"><div class="pill-dot"></div>Free &amp; Open Source · v1.5.0 · Windows &amp; macOS</div>
   <p class="hero-eye">AI Sermon &amp; Worship Display</p>
   <h1>AnchorCast</h1>
 
@@ -1109,7 +1109,7 @@ footer{
       </div>
       <div class="dl-counter-divider"></div>
       <div class="dl-counter-block">
-        <span class="dl-counter-num" id="releaseVer">v1.4.0</span>
+        <span class="dl-counter-num" id="releaseVer">v1.5.0</span>
         <span class="dl-counter-lbl">Latest Version</span>
       </div>
     </div>
@@ -1119,7 +1119,7 @@ footer{
   <div class="hero-frame reveal">
     <div class="frame-bar">
       <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
-      <span class="frame-title">AnchorCast v1.4.0 — AI Sermon &amp; Worship Display · ON AIR</span>
+      <span class="frame-title">AnchorCast v1.5.0 — AI Sermon &amp; Worship Display · ON AIR</span>
     </div>
     <img src="assets/screenshots/main-app.png"
          alt="AnchorCast main interface — 4-panel operator dashboard"
@@ -1268,7 +1268,7 @@ footer{
       <span class="footer-badge">✦ MIT License</span>
       <span class="footer-badge">🔒 100% Free</span>
       <span class="footer-badge">⚡ Open Source</span>
-      <span class="footer-badge">v1.4.0</span>
+      <span class="footer-badge">v1.5.0</span>
     </div>
   </div>
 </footer>
@@ -1386,7 +1386,7 @@ footer{
     /* Show known baselines immediately */
     animateCounter(['dlCount','statDl'], KNOWN_DOWNLOADS);
     animateCounter(['starCount','ghStars','starCountHero'], KNOWN_STARS);
-    setText(['releaseVer','relTag'], 'v1.4.0');
+    setText(['releaseVer','relTag'], 'v1.5.0');
 
     /* ── Downloads: GitHub API → Shields.io fallback ── */
     fetch(BASE + '/releases?per_page=100')
@@ -1439,16 +1439,16 @@ footer{
     fetch(BASE + '/releases/latest')
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.4.0');
+        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.5.0');
       })
       .catch(function(){
         fetch('https://img.shields.io/github/release/'+REPO+'.json')
           .then(function(r){ return r.json(); })
           .then(function(d){
             setText(['releaseVer','relTag'],
-              (d&&d.value&&d.value!=='none') ? d.value : 'v1.4.0');
+              (d&&d.value&&d.value!=='none') ? d.value : 'v1.5.0');
           }).catch(function(){
-            setText(['releaseVer','relTag'], 'v1.4.0');
+            setText(['releaseVer','relTag'], 'v1.5.0');
           });
       });
   }
