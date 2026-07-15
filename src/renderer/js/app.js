@@ -9017,6 +9017,7 @@ function refreshThemeSwatches() {
 // Local/Cloud go through the existing PCM → main process pipeline
 
 let deepgramSocket    = null;
+let dgQuickFailCount  = 0; // tracks consecutive rejected-connection closes for diagnostics
 let deepgramConnected = false;
 
 const SRC_ORDER = ['deepgram', 'local', 'cloud']; // cycle order
@@ -9133,13 +9134,13 @@ function startDeepgramStream() {
     smart_format:      'true',
     punctuate:         'true',
     interim_results:   'true',
-    // Lowered from 1200ms to reduce finalization delay during continuous
-    // preaching. NOTE: an earlier attempt also added an explicit
-    // `endpointing` param alongside this, which caused Deepgram to stop
-    // transcribing entirely (likely an invalid param combination rejected
-    // at connection time) — reverted. Only touch this value in isolation
-    // and confirm a real connection still works before layering more changes.
-    utterance_end_ms:  '1200',
+    // 1000ms is Deepgram's documented HARD MINIMUM for this parameter — values
+    // below 1000 get the connection rejected outright by Deepgram's server
+    // ("server rejected WebSocket connection"), which is exactly what caused
+    // the "stopped transcribing" bug at 900/950/990ms. Confirmed via Deepgram's
+    // own docs and community reports. 1000 is the best (lowest-latency) value
+    // that's actually safe to use.
+    utterance_end_ms:  '1000',
     vad_events:        'true',
     encoding:          'linear16',
     sample_rate:       '16000',
@@ -9171,6 +9172,9 @@ function startDeepgramStream() {
 
   const url = `wss://api.deepgram.com/v1/listen?` + params.toString();
 
+  let dgOpenedAt = 0;
+  let dgReceivedAnyMessage = false;
+
   try {
     deepgramSocket = new WebSocket(url, ['token', key]);
   } catch(e) {
@@ -9180,6 +9184,8 @@ function startDeepgramStream() {
 
   deepgramSocket.onopen = () => {
     deepgramConnected = true;
+    dgOpenedAt = Date.now();
+    dgReceivedAnyMessage = false;
     console.log('[Deepgram] Connected — streaming live');
     toast('⚡ Deepgram connected — speak now');
     updateSrcToggleUI();
@@ -9188,6 +9194,7 @@ function startDeepgramStream() {
   deepgramSocket.onmessage = (evt) => {
     try {
       const msg = JSON.parse(evt.data);
+      dgReceivedAnyMessage = true;
 
       // Real-time interim transcript
       if (msg.type === 'Results') {
@@ -9215,9 +9222,33 @@ function startDeepgramStream() {
 
   deepgramSocket.onclose = (evt) => {
     deepgramConnected = false;
-    console.log(`[Deepgram] Closed (${evt.code})`);
-    if (evt.code === 1008) toast('⚠ Deepgram: invalid API key — check Settings');
-    else if (State.isRecording && State.whisperSource === 'deepgram') {
+    console.log(`[Deepgram] Closed (code=${evt.code}, reason="${evt.reason || ''}")`);
+
+    if (evt.code === 1008) {
+      toast('⚠ Deepgram: invalid API key — check Settings');
+      return;
+    }
+
+    // Detect a REJECTED connection: closed almost immediately after opening
+    // and never received a single message. This is the exact signature of
+    // an invalid query parameter (e.g. utterance_end_ms below Deepgram's
+    // 1000ms minimum) — Deepgram rejects the socket outright. Retrying the
+    // same broken config forever produces total silence with no clear
+    // error, which is what happened before. Surface it clearly instead.
+    const closedQuickly = dgOpenedAt && (Date.now() - dgOpenedAt) < 3000 && !dgReceivedAnyMessage;
+    if (closedQuickly) {
+      dgQuickFailCount++;
+      if (dgQuickFailCount >= 2) {
+        toast('⚠ Deepgram connection rejected repeatedly — check connection settings (a query parameter may be invalid). Falling back to local Whisper.');
+        console.warn('[Deepgram] Connection rejected twice in a row without any data — stopping auto-reconnect. Check query parameters (e.g. utterance_end_ms must be >= 1000).');
+        dgQuickFailCount = 0;
+        return; // stop the retry loop — retrying an invalid config indefinitely is pointless
+      }
+    } else {
+      dgQuickFailCount = 0; // reset once we get a healthy connection
+    }
+
+    if (State.isRecording && State.whisperSource === 'deepgram') {
       // Auto-reconnect after 2s if still recording
       setTimeout(() => {
         if (State.isRecording && State.whisperSource === 'deepgram') startDeepgramStream();
