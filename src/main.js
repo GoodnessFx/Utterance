@@ -27,6 +27,7 @@ const crypto=require('crypto');
 const fs=require('fs');
 const http=require('http');
 const https=require('https');
+const AdmZip=require('adm-zip');
 const {spawn,spawnSync,execFileSync}=require('child_process');
 
 
@@ -5355,9 +5356,11 @@ ipcMain.handle('get-installed-versions', async () => {
   return result;
 });
 
-// Save a Bible translation uploaded from the settings UI
-ipcMain.handle('save-bible-version', async (_, translation, data) => {
-  // KJV is always free; additional translations require registration
+// Shared core used by both the manual upload flow (save-bible-version) and
+// the in-app "Download Bible" feature — keeps the registration gate and
+// write logic in exactly one place so downloaded translations are governed
+// by the same licensing rule as manually uploaded ones.
+async function _saveBibleVersionCore(translation, data) {
   if (translation && translation.toUpperCase() !== 'KJV') {
     const gate = requiresRegistration('Additional Bible Translations');
     if (gate) return { success: false, blocked: true, error: gate.reason };
@@ -5375,6 +5378,225 @@ ipcMain.handle('save-bible-version', async (_, translation, data) => {
     if (mainWindow) mainWindow.webContents.send('bible-versions-updated');
     return { success: true, count, verseCount: count };
   } catch(e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ── In-app "Download Bible" feature ────────────────────────────────────────
+// Fetches the translation catalog and downloads/flattens a translation
+// directly inside the app, so users don't need to run the standalone
+// download-bible.sh/.bat scripts manually. Mirrors the same pipeline those
+// scripts use (bolls.life catalog → zip → flatten → import).
+
+function _httpsGetBuffer(url, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'AnchorCast/1.0' } }, (res) => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        const nextUrl = new URL(res.headers.location, url).toString();
+        resolve(_httpsGetBuffer(nextUrl, redirectsLeft - 1));
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode} fetching ${url}`));
+        return;
+      }
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Request timed out')); });
+  });
+}
+
+async function _httpsGetJson(url) {
+  const buf = await _httpsGetBuffer(url);
+  return JSON.parse(buf.toString('utf-8'));
+}
+
+// Minimal HTML entity decoder — covers what Bolls' Bible text actually uses
+// (named entities for punctuation/quotes plus numeric entities). Avoids
+// pulling in a whole HTML-entity npm package for a handful of characters.
+const _HTML_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  ldquo: '\u201c', rdquo: '\u201d', lsquo: '\u2018', rsquo: '\u2019',
+  mdash: '\u2014', ndash: '\u2013', hellip: '\u2026',
+};
+function _decodeHtmlEntities(str) {
+  return String(str || '').replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (m, ent) => {
+    if (ent[0] === '#') {
+      const code = ent[1] === 'x' || ent[1] === 'X'
+        ? parseInt(ent.slice(2), 16)
+        : parseInt(ent.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+    }
+    return _HTML_ENTITIES[ent] !== undefined ? _HTML_ENTITIES[ent] : m;
+  });
+}
+
+function _cleanVerseText(value, preserveLineBreaks) {
+  let text = _decodeHtmlEntities(value == null ? '' : String(value));
+  if (preserveLineBreaks) {
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<[^>]+>/g, '');
+    return text.split('\n').map(l => l.split(/\s+/).filter(Boolean).join(' ')).filter(Boolean).join('\n').trim();
+  }
+  text = text.replace(/<br\s*\/?>/gi, ' ');
+  text = text.replace(/<[^>]+>/g, '');
+  return text.split(/\s+/).filter(Boolean).join(' ').trim();
+}
+
+function _firstPresent(obj, keys) {
+  for (const k of keys) if (obj[k] !== undefined) return obj[k];
+  return undefined;
+}
+
+// Port of flatten_bible_json.py — detects flat-list vs nested books→chapters→
+// verses structures and normalizes both into [{b,c,v,t}, ...].
+function _flattenBibleJson(data, preserveLineBreaks = true) {
+  const out = [];
+
+  function flattenFlatList(list) {
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const book = _firstPresent(item, ['book', 'b', 'book_number', 'bookNumber']);
+      const chapter = _firstPresent(item, ['chapter', 'c', 'chapter_number', 'chapterNumber']);
+      const verse = _firstPresent(item, ['verse', 'v', 'verse_number', 'verseNumber']);
+      const text = _firstPresent(item, ['text', 't', 'content', 'verse_text', 'verseText']);
+      const b = parseInt(book, 10), c = parseInt(chapter, 10), v = parseInt(verse, 10);
+      if (!Number.isFinite(b) || !Number.isFinite(c) || !Number.isFinite(v)) continue;
+      out.push({ b, c, v, t: _cleanVerseText(text, preserveLineBreaks) });
+    }
+  }
+
+  function flattenNestedBooks(obj) {
+    const books = obj.books;
+    if (!Array.isArray(books)) throw new Error("Nested input must contain a 'books' list.");
+    books.forEach((book, bi) => {
+      if (!book || typeof book !== 'object') return;
+      let bookNumber = _firstPresent(book, ['book', 'b', 'number', 'book_number', 'bookNumber']);
+      if (bookNumber === undefined) bookNumber = bi + 1;
+      const chapters = book.chapters;
+      if (!Array.isArray(chapters)) return;
+      chapters.forEach((chapter, ci) => {
+        if (!chapter || typeof chapter !== 'object') return;
+        let chapterNumber = _firstPresent(chapter, ['chapter', 'c', 'number', 'chapter_number', 'chapterNumber']);
+        if (chapterNumber === undefined) chapterNumber = ci + 1;
+        const verses = chapter.verses;
+        if (!Array.isArray(verses)) return;
+        verses.forEach((verse, vi) => {
+          if (!verse || typeof verse !== 'object') return;
+          let verseNumber = _firstPresent(verse, ['verse', 'v', 'number', 'verse_number', 'verseNumber']);
+          if (verseNumber === undefined) verseNumber = vi + 1;
+          const text = _firstPresent(verse, ['text', 't', 'content', 'verse_text', 'verseText']);
+          out.push({
+            b: parseInt(bookNumber, 10), c: parseInt(chapterNumber, 10), v: parseInt(verseNumber, 10),
+            t: _cleanVerseText(text, preserveLineBreaks),
+          });
+        });
+      });
+    });
+  }
+
+  if (Array.isArray(data)) {
+    flattenFlatList(data);
+  } else if (data && typeof data === 'object') {
+    if (Array.isArray(data.books)) {
+      flattenNestedBooks(data);
+    } else {
+      const key = ['verses', 'data', 'results'].find(k => Array.isArray(data[k]));
+      if (key) flattenFlatList(data[key]);
+      else throw new Error('Unsupported JSON structure — expected a verse list or books→chapters→verses.');
+    }
+  } else {
+    throw new Error('Unsupported JSON structure.');
+  }
+
+  if (out.length === 0) throw new Error('No verses were found in the downloaded file.');
+  return out;
+}
+
+const BOLLS_LANGUAGES_URL = 'https://bolls.life/static/bolls/app/views/languages.json';
+const BOLLS_TRANSLATION_BASE = 'https://bolls.life/static/translations';
+
+// Auto-flatten any uploaded Bible JSON before import — handles the same
+// flat-list and nested books→chapters→verses formats as the Download Bible
+// feature. Safe to run on already-flattened AnchorCast-format data too
+// (verified idempotent: {b,c,v,t} in produces the same shape back out).
+ipcMain.handle('bible-flatten-json', async (_, data) => {
+  try {
+    const flattened = _flattenBibleJson(data, true);
+    return { success: true, data: flattened };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('bible-fetch-catalog', async () => {
+  try {
+    const catalog = await _httpsGetJson(BOLLS_LANGUAGES_URL);
+    const english = Array.isArray(catalog) ? catalog.find(e => e.language === 'English') : null;
+    if (!english || !Array.isArray(english.translations)) {
+      return { success: false, error: 'No English translation list was found.' };
+    }
+    const translations = english.translations
+      .map(t => ({
+        slug: String(t.short_name || '').trim(),
+        fullName: String(t.full_name || '').trim(),
+      }))
+      .filter(t => t.slug);
+    return { success: true, translations };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('bible-download-translation', async (_, { slug, fullName } = {}) => {
+  if (!slug) return { success: false, error: 'No translation selected.' };
+  // The Download Bible UI lives in the Settings window, NOT mainWindow — a
+  // separate BrowserWindow/webContents entirely. Sending progress events to
+  // mainWindow meant they never reached the UI that actually needed them,
+  // leaving the "Starting…" state stuck even though the download itself
+  // completed successfully server-side. Target settingsWindow directly.
+  const targetWin = () => (settingsWindow && !settingsWindow.isDestroyed()) ? settingsWindow : mainWindow;
+  const send = (line) => { const w = targetWin(); if (w) w.webContents.send('bible-download-progress', { slug, line }); };
+  const sendComplete = (payload) => { const w = targetWin(); if (w) w.webContents.send('bible-download-complete', payload); };
+  try {
+    // KJV is always free; gate everything else up front before spending
+    // any bandwidth on a download that would just get rejected at save time.
+    if (slug.toUpperCase() !== 'KJV') {
+      const gate = requiresRegistration('Additional Bible Translations');
+      if (gate) return { success: false, blocked: true, error: gate.reason };
+    }
+
+    send(`Downloading ${slug}...`);
+    const zipUrl = `${BOLLS_TRANSLATION_BASE}/${encodeURIComponent(slug)}.zip`;
+    const zipBuf = await _httpsGetBuffer(zipUrl);
+
+    send('Extracting...');
+    const zip = new AdmZip(zipBuf);
+    const jsonEntry = zip.getEntries().find(e => !e.isDirectory && /\.json$/i.test(e.entryName));
+    if (!jsonEntry) throw new Error('No JSON file was found inside the downloaded translation package.');
+    const rawJson = JSON.parse(zip.readAsText(jsonEntry));
+
+    send('Converting to AnchorCast format...');
+    const flattened = _flattenBibleJson(rawJson, true);
+
+    send('Saving...');
+    const result = await _saveBibleVersionCore(slug, flattened);
+    if (!result.success) {
+      sendComplete({ slug, success: false, error: result.error, blocked: !!result.blocked });
+      return result;
+    }
+
+    sendComplete({ slug, success: true, verseCount: result.count, fullName });
+    return { success: true, verseCount: result.count };
+  } catch (e) {
+    console.warn(`[Bible Download] ${slug} failed:`, e.message);
+    sendComplete({ slug, success: false, error: e.message });
     return { success: false, error: e.message };
   }
 });

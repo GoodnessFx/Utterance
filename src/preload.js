@@ -110,6 +110,9 @@ contextBridge.exposeInMainWorld('electronAPI',{
   // Bible data
   loadBibleData:        ()              => ipcRenderer.invoke('load-bible-data'),
   getInstalledVersions: ()              => ipcRenderer.invoke('get-installed-versions'),
+  fetchBibleCatalog:    ()              => ipcRenderer.invoke('bible-fetch-catalog'),
+  flattenBibleJson:     (data)          => ipcRenderer.invoke('bible-flatten-json', data),
+  downloadBibleTranslation: (slug, fullName) => ipcRenderer.invoke('bible-download-translation', { slug, fullName }),
   saveBibleVersion:     (trans, data)   => ipcRenderer.invoke('save-bible-version', trans, data),
   deleteBibleVersion:   (trans)         => ipcRenderer.invoke('delete-bible-version', trans),
   importTranslation:    ({abbrev, data})=> ipcRenderer.invoke('save-bible-version', abbrev, data),
@@ -205,6 +208,7 @@ contextBridge.exposeInMainWorld('electronAPI',{
       'open-settings-modal','settings-saved','bible-versions-updated','ndi-status','open-ndi-panel','open-sermon-notes',
       'songs-saved',
       'transcript-result','transcript-no-key','whisper-status','whisper-setup-needed','whisper-setup-result','whisper-model-progress','whisper-model-downloaded',
+      'bible-download-progress','bible-download-complete',
       'menu-schedule-new','menu-schedule-save','menu-schedule-save-as',
       'menu-schedule-open','menu-schedule-export','menu-schedule-import',
       'menu-schedule-load-file',
