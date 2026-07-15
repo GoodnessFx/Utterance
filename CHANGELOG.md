@@ -4,6 +4,18 @@ All notable changes to **AnchorCast** are documented here.
 
 ---
 
+## [1.5.0] — 2026-07
+
+### Added
+- **In-app Bible download** — new "Download Bible" tab in Settings → Bible Versions. Search and download translations directly, no manual scripts or file handling required.
+- **License-aware downloads** — translations are labeled Public Domain, Free License, or License Required. Public domain and free license translations download and import with one click; copyrighted translations show a License Required notice and route to manual import instead of downloading.
+- **Auto-flatten on upload** — Bible JSON uploads (both the Download tab's License Required flow and the General tab's manual upload) are automatically converted to AnchorCast's format, supporting flat-list and nested books→chapters→verses structures.
+
+### Changed
+- Bible Setup help documentation updated to reflect the new in-app download flow and copyright/licensing guidance; outdated command-line script instructions removed in favor of the license-aware in-app system.
+
+---
+
 ## [1.4.0] — 2026-05
 
 ### Security

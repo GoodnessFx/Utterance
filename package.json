@@ -1,6 +1,6 @@
 {
   "name": "anchorcast",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "AI-powered worship presentation, sermon transcript and Bible casting app for churches",
   "main": "src/main.js",
   "author": "AnchorCast",
@@ -39,14 +39,22 @@
     "build:update:win": "npm run build:win:update",
     "build:update:mac": "npm run build:mac:update:arm && npm run build:mac:update:x64",
     "audit": "npm audit",
-    "audit:fix": "npm audit fix"
+    "audit:fix": "npm audit fix",
+    "build:mac:full:arm:signed": "npm run build:mac:full:arm",
+    "build:mac:light:arm:signed": "npm run build:mac:light:arm",
+    "build:mac:full:x64:signed": "npm run build:mac:full:x64",
+    "build:mac:light:x64:signed": "npm run build:mac:light:x64",
+    "verify:mac:identity": "security find-identity -v -p codesigning",
+    "notarize:mac": "node scripts/notarize-mac-cli.js"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "@electron/notarize": "^2.5.0"
   }
 }

@@ -1,4 +1,4 @@
-# ⚓ AnchorCast v1.4.0
+# ⚓ AnchorCast v1.5.0
 ### *Free & Open-Source AI Church Presentation Software*
 
 <p align="center">
@@ -179,10 +179,10 @@ npm run build:mac:full:x64
 npm run build:mac:light:x64
 ```
 
-### Auto-Update packages
+### Auto-Update packages (publish to GitHub)
 ```bash
-npm run build:update:win
-npm run build:update:mac   # runs arm64 + x64
+GH_TOKEN=your_token npm run build:update:win
+GH_TOKEN=your_token npm run build:update:mac   # runs arm64 + x64
 ```
 
 ### Standalone Timer
