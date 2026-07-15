@@ -1,20 +1,21 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-  <link rel="icon" type="image/x-icon" href="assets/favicon.ico"/>
-  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg"/>
-  <link rel="apple-touch-icon" href="assets/favicon.svg"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta charset="utf-8"/>
+<link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
+<link href="assets/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="assets/favicon.svg" rel="apple-touch-icon"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>AnchorCast — Free AI Church Presentation Software</title>
-<meta name="description" content="AnchorCast is a free, open-source AI church presentation app for Windows. Real-time Bible verse detection, live sermon transcription, song display, countdown timer, NDI streaming — fully offline."/>
-<meta property="og:title" content="AnchorCast — Free AI Church Presentation Software"/>
-<meta property="og:description" content="Listens to your preacher. Detects Bible verses. Displays them on screen. Automatically. Free forever."/>
-<meta property="og:url" content="https://www.anchorcastapp.com"/>
-<meta property="og:image" content="assets/screenshots/main-app.png"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+<meta content="AnchorCast is a free, open-source AI church presentation app for Windows. Real-time Bible verse detection, live sermon transcription, song display, countdown timer, NDI streaming — fully offline." name="description"/>
+<meta content="AnchorCast — Free AI Church Presentation Software" property="og:title"/>
+<meta content="Listens to your preacher. Detects Bible verses. Displays them on screen. Automatically. Free forever." property="og:description"/>
+<meta content="https://www.anchorcastapp.com" property="og:url"/>
+<meta content="assets/screenshots/main-app.png" property="og:image"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&amp;family=Cinzel:wght@400;600;700&amp;family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&amp;family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&amp;display=swap" rel="stylesheet"/>
 <style>
 
 :root{
@@ -1026,456 +1027,235 @@ footer{
 }
 /* ════════════════ END FOOTER v5 ════════════════ */
 </style>
-</head>
-<body>
-
+<meta content="#06080f" name="theme-color"/><meta content="index,follow,max-image-preview:large" name="robots"/><link href="https://www.anchorcastapp.com/" rel="canonical"/><link data-anchorcast-modern="true" href="assets/css/anchorcast-modern.css" rel="stylesheet"/><link as="image" fetchpriority="high" href="assets/screenshots/main-app.png" rel="preload"/></head>
+<body data-page="home">
 <!-- NAV -->
 <div class="scroll-progress" id="scrollProg"></div>
 <nav id="nav">
-  <a href="index.html" class="logo">
-    <div class="logo-mark">✝</div>
-    <span class="logo-name">AnchorCast</span>
-  </a>
-  <ul class="nav-links">
-    <li><a href="index.html" style="color:var(--gold)">Home</a></li>
-    <li><a href="pages/features.html">Features</a></li>
-    <li><a href="pages/demo.html">Demo</a></li>
-    <li><a href="pages/docs.html">Docs</a></li>
-    <li><a href="pages/open-source.html">Open Source</a></li>
-    <li><a href="pages/contact.html">Contact</a></li>
-    <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener">Wiki</a></li>
-    <li><a href="pages/download.html" class="nav-dl">⬇ Free Download</a></li>
-  </ul>
-  <button class="mob-menu-btn" id="mobMenuBtn" aria-label="Menu">☰</button>
-
+<a class="logo" href="index.html">
+<div class="logo-mark">✝</div>
+<span class="logo-name">AnchorCast</span>
+</a>
+<ul class="nav-links">
+<li><a href="index.html" style="color:var(--gold)">Home</a></li>
+<li><a href="pages/features.html">Features</a></li>
+<li><a href="pages/demo.html">Demo</a></li>
+<li><a href="pages/docs.html">Docs</a></li>
+<li><a href="pages/open-source.html">Open Source</a></li>
+<li><a href="pages/contact.html">Contact</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">Wiki</a></li>
+<li><a class="nav-dl" href="pages/download.html">⬇ Free Download</a></li>
+</ul>
+<button aria-label="Open navigation menu" class="mob-menu-btn" id="mobMenuBtn" type="button">☰</button>
 </nav>
-
-<div class="mob-menu" id="mobMenu">
-  <div class="mob-menu-header">
-    <a href="index.html" class="mob-menu-logo" onclick="document.getElementById('mobMenu').classList.remove('open');if(document.getElementById('mobMenuBtn'))document.getElementById('mobMenuBtn').textContent='☰';document.documentElement.style.overflow='';return true;">
-      <div class="mob-menu-logo-mark">✝</div>
-      <span>AnchorCast</span>
-    </a>
-    <button class="mob-menu-close" id="mobMenuClose" onclick="(function(){document.getElementById('mobMenu').classList.remove('open');var b=document.getElementById('mobMenuBtn');if(b)b.textContent='☰';document.documentElement.style.overflow='';})()">✕</button>
-  </div>
-    <a href="index.html">Home</a>
-    <a href="pages/features.html">Features</a>
-    <a href="pages/demo.html">Demo</a>
-    <a href="pages/docs.html">Docs</a>
-    <a href="pages/open-source.html">Open Source</a>
-    <a href="pages/contact.html">Contact</a></li>
-    <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener noreferrer">Wiki</a>
-    <a href="pages/download.html" class="mob-dl">⬇ Free Download</a>
-  </div>
-
-
+<div class="mob-menu" id="mobMenu"><div class="mob-menu-header">
+<a class="mob-menu-logo" href="index.html">
+<div class="mob-menu-logo-mark">✝</div>
+<span>AnchorCast</span>
+</a>
+<button aria-label="Close navigation menu" class="mob-menu-close" id="mobMenuClose" type="button">✕</button>
+</div><a href="index.html">Home</a><a href="pages/features.html">Features</a><a href="pages/demo.html">Demo</a><a href="pages/docs.html">Docs</a><a href="pages/open-source.html">Open Source</a><a href="pages/contact.html">Contact</a><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">Wiki</a><a class="mob-dl" href="pages/download.html">⬇ Free Download</a></div>
 <!-- HERO -->
 <section class="hero">
-  <div class="pill"><div class="pill-dot"></div>Free &amp; Open Source · v1.5.0 · Windows &amp; macOS</div>
-  <p class="hero-eye">AI Sermon &amp; Worship Display</p>
-  <h1>AnchorCast</h1>
-
-  <div class="hero-free-banner">
-    <span class="hfb-icon">🎁</span>
-    <span class="hfb-text">100% Free · No Subscription · No Trial · No Credit Card · Ever</span>
-  </div>
-
-  <p class="hero-sub">
+<div class="pill"><div class="pill-dot"></div>Free &amp; Open Source · <span aria-live="polite" data-github="version">Checking…</span> · Windows &amp; macOS</div>
+<p class="hero-eye">AI Sermon &amp; Worship Display</p>
+<h1>AnchorCast</h1>
+<div class="hero-free-banner">
+<span class="hfb-icon">🎁</span>
+<span class="hfb-text">100% Free · No Subscription · No Trial · No Credit Card · Ever</span>
+</div>
+<p class="hero-sub">
     Listens to your preacher. <strong>Detects Bible verses.</strong><br/>
     Displays them on screen. <strong>Automatically.</strong><br/>
     Songs · Scripture · Timer · NDI · All in one free app.
   </p>
-
-  <div class="hero-cta">
-    <a href="pages/download.html" class="btn-gold" style="font-size:16px;padding:16px 40px">
+<div class="hero-cta">
+<a class="btn-gold" href="pages/download.html" style="font-size:16px;padding:16px 40px">
       ⬇ Download — Windows &amp; macOS — Free
     </a>
-    <a href="https://github.com/anchorcastapp-team/anchorcastapp" class="btn-ghost" target="_blank" rel="noopener">
+<a class="btn-ghost" href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank">
       ⭐ Star on GitHub
     </a>
-  </div>
-
-  <!-- Download counter -->
-  <div class="dl-counter-wrap">
-    <div class="dl-counter-inner">
-      <div class="dl-counter-block">
-        <span class="dl-counter-num" id="dlCount">15</span>
-        <span class="dl-counter-lbl">Total Downloads</span>
-      </div>
-      <div class="dl-counter-divider"></div>
-      <div class="dl-counter-block">
-        <span class="dl-counter-num" id="starCountHero">4</span>
-        <span class="dl-counter-lbl">GitHub Stars</span>
-      </div>
-      <div class="dl-counter-divider"></div>
-      <div class="dl-counter-block">
-        <span class="dl-counter-num" id="releaseVer">v1.5.0</span>
-        <span class="dl-counter-lbl">Latest Version</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- App Screenshot -->
-  <div class="hero-frame reveal">
-    <div class="frame-bar">
-      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
-      <span class="frame-title">AnchorCast v1.5.0 — AI Sermon &amp; Worship Display · ON AIR</span>
-    </div>
-    <img src="assets/screenshots/main-app.png"
-         alt="AnchorCast main interface — 4-panel operator dashboard"
-         loading="eager"/>
-  </div>
+</div>
+<!-- Download counter -->
+<div class="dl-counter-wrap">
+<div class="dl-counter-inner">
+<div class="dl-counter-block">
+<span aria-live="polite" class="dl-counter-num" data-github="downloads" id="dlCount">…</span>
+<span class="dl-counter-lbl">Total Downloads</span>
+</div>
+<div class="dl-counter-divider"></div>
+<div class="dl-counter-block">
+<span aria-live="polite" class="dl-counter-num" data-github="stars" id="starCountHero">…</span>
+<span class="dl-counter-lbl">GitHub Stars</span>
+</div>
+<div class="dl-counter-divider"></div>
+<div class="dl-counter-block">
+<span aria-live="polite" class="dl-counter-num" data-github="version" id="releaseVer">Checking…</span>
+<span class="dl-counter-lbl">Latest Version</span>
+</div>
+</div>
+</div>
+<!-- App Screenshot -->
+<div class="hero-frame reveal">
+<div class="frame-bar">
+<div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+<span class="frame-title">AnchorCast <span aria-live="polite" data-github="version">Checking…</span> — AI Sermon &amp; Worship Display · ON AIR</span>
+</div>
+<img alt="AnchorCast main interface — 4-panel operator dashboard" data-lightbox="true" decoding="async" fetchpriority="high" loading="eager" src="assets/screenshots/main-app.png"/>
+</div>
+</section><section aria-labelledby="liveReleaseHeading" class="section live-release-section reveal" id="live-release-home">
+<div class="live-release-card">
+<div>
+<div class="live-release-kicker"><span>Latest release</span><span>•</span><span data-github="version">Checking…</span><span>•</span><span data-github="release-date">Checking GitHub…</span></div>
+<h2 class="live-release-title" data-github="release-name" id="liveReleaseHeading">Checking the latest AnchorCast release…</h2>
+<p class="live-release-summary" data-github="release-summary">Release details are loaded securely through the website's cached GitHub endpoint.</p>
+<div class="live-release-actions">
+<a class="btn-gold" href="pages/download.html">⬇ Choose a download</a>
+<a class="btn-ghost" data-release-link="" href="https://github.com/anchorcastapp-team/anchorcastapp/releases/latest" rel="noopener noreferrer" target="_blank">View release notes ↗</a>
+</div>
+</div>
+<div aria-label="Live GitHub statistics" class="live-release-stats">
+<div class="live-release-stat"><strong data-github="downloads">…</strong><span>Total downloads</span></div>
+<div class="live-release-stat"><strong data-github="stars">…</strong><span>GitHub stars</span></div>
+<div class="live-release-stat"><strong data-github="asset-count">…</strong><span>Release assets</span></div>
+<div class="live-release-stat"><strong data-github="latest-downloads">…</strong><span>Latest-release downloads</span></div>
+</div>
+</div>
 </section>
-
 <!-- QUICK FEATURE STRIP -->
 <section class="section">
-  <div class="quick-strip reveal">
-    <div class="quick-item">
-      <div class="quick-item-ic">🎤</div>
-      <div class="quick-item-text"><strong>AI Verse Detection</strong>Detects Bible verses as the preacher speaks:automatically</div>
-    </div>
-    <div class="quick-item">
-      <div class="quick-item-ic">🔒</div>
-      <div class="quick-item-text"><strong>Works Offline</strong>Local Whisper AI: no internet, no cloud, fully private</div>
-    </div>
-    <div class="quick-item">
-      <div class="quick-item-ic">📱</div>
-      <div class="quick-item-text"><strong>Wi-Fi Remote</strong>Control from any phone on the same network</div>
-    </div>
-    <div class="quick-item">
-      <div class="quick-item-ic">🎵</div>
-      <div class="quick-item-text"><strong>Songs + Scripture</strong>Full song library, multi-translation Bible, media display</div>
-    </div>
-  </div>
+<div class="quick-strip reveal">
+<div class="quick-item">
+<div class="quick-item-ic">🎤</div>
+<div class="quick-item-text"><strong>AI Verse Detection</strong>Detects Bible verses as the preacher speaks — automatically</div>
+</div>
+<div class="quick-item">
+<div class="quick-item-ic">🔒</div>
+<div class="quick-item-text"><strong>Works Offline</strong>Local Whisper AI: no internet, no cloud, fully private</div>
+</div>
+<div class="quick-item">
+<div class="quick-item-ic">📱</div>
+<div class="quick-item-text"><strong>Wi-Fi Remote</strong>Control from any phone on the same network</div>
+</div>
+<div class="quick-item">
+<div class="quick-item-ic">🎵</div>
+<div class="quick-item-text"><strong>Songs + Scripture</strong>Full song library, multi-translation Bible, media display</div>
+</div>
+</div>
 </section>
-
 <!-- PAGE NAVIGATION CARDS -->
 <section class="section">
-  <div class="sec-tag">Explore AnchorCast</div>
-  <h2>Everything You Need to <i>Get Started</i></h2>
-  <p class="sec-sub">Browse the pages below to learn more, see screenshots, read the docs, or go straight to the download.</p>
-
-  <div class="home-nav-grid reveal">
-
-    <a href="pages/features.html" class="home-nav-card">
-      <div class="home-nav-icon">⚡</div>
-      <div class="home-nav-title">Features</div>
-      <div class="home-nav-desc">AI verse detection, live transcription, song manager, countdown timer, NDI streaming, remote control, and more : All Free.</div>
-      <div class="home-nav-arrow">View all features →</div>
-    </a>
-
-    <a href="pages/demo.html" class="home-nav-card">
-      <div class="home-nav-icon">🖼</div>
-      <div class="home-nav-title">Demo</div>
-      <div class="home-nav-desc">See the real app : the 4-panel operator dashboard, timer control window, and Wi-Fi remote interface on a phone.</div>
-      <div class="home-nav-arrow">See screenshots →</div>
-    </a>
-
-    <a href="pages/docs.html" class="home-nav-card">
-      <div class="home-nav-icon">📖</div>
-      <div class="home-nav-title">Documentation</div>
-      <div class="home-nav-desc">Setup guides for projection, transcription, songs, schedule, and remote control. Keyboard shortcut reference included.</div>
-      <div class="home-nav-arrow">Read the docs →</div>
-    </a>
-
-    <a href="pages/open-source.html" class="home-nav-card">
-      <div class="home-nav-icon">⚓</div>
-      <div class="home-nav-title">Open Source</div>
-      <div class="home-nav-desc">MIT licensed. View the source, contribute, or fork it for your own church tools. Free to use and build on forever.</div>
-      <div class="home-nav-arrow">View on GitHub →</div>
-    </a>
-
-    <a href="pages/contact.html" class="home-nav-card">
-      <div class="home-nav-icon">✉</div>
-      <div class="home-nav-title">Contact</div>
-      <div class="home-nav-desc">Have a question, bug report, or feature idea? Reach the AnchorCast team directly — we'd love to hear from you.</div>
-      <div class="home-nav-arrow">Get in touch →</div>
-    </a>
-
-    <a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" class="home-nav-card" target="_blank" rel="noopener noreferrer">
-      <div class="home-nav-icon">📚</div>
-      <div class="home-nav-title">Wiki</div>
-      <div class="home-nav-desc">Full documentation wiki: interface overview, AI transcription, song manager, timer, NDI, troubleshooting, and FAQ.</div>
-      <div class="home-nav-arrow">Open Wiki ↗</div>
-    </a>
-
-    <a href="pages/download.html" class="home-nav-card" style="border-color:var(--gold);background:var(--gold-glow)">
-      <div class="home-nav-icon" style="background:linear-gradient(135deg,var(--gold),var(--gold-dk));border:none">⬇</div>
-      <div class="home-nav-title" style="color:var(--gold)">Download Free</div>
-      <div class="home-nav-desc">Windows installer: Python + Whisper AI bundled. Works completely offline. No internet required after install.</div>
-      <div class="home-nav-arrow" style="font-size:13px">Download for Windows or MacOS →</div>
-    </a>
-
-  </div>
+<div class="sec-tag">Explore AnchorCast</div>
+<h2>Everything You Need to <i>Get Started</i></h2>
+<p class="sec-sub">Browse the pages below to learn more, see screenshots, read the docs, or go straight to the download.</p>
+<div class="home-nav-grid reveal">
+<a class="home-nav-card" href="pages/features.html">
+<div class="home-nav-icon">⚡</div>
+<div class="home-nav-title">Features</div>
+<div class="home-nav-desc">AI verse detection, live transcription, song manager, countdown timer, NDI streaming, remote control, and more : All Free.</div>
+<div class="home-nav-arrow">View all features →</div>
+</a>
+<a class="home-nav-card" href="pages/demo.html">
+<div class="home-nav-icon">🖼</div>
+<div class="home-nav-title">Demo</div>
+<div class="home-nav-desc">See the real app : the 4-panel operator dashboard, timer control window, and Wi-Fi remote interface on a phone.</div>
+<div class="home-nav-arrow">See screenshots →</div>
+</a>
+<a class="home-nav-card" href="pages/docs.html">
+<div class="home-nav-icon">📖</div>
+<div class="home-nav-title">Documentation</div>
+<div class="home-nav-desc">Setup guides for projection, transcription, songs, schedule, and remote control. Keyboard shortcut reference included.</div>
+<div class="home-nav-arrow">Read the docs →</div>
+</a>
+<a class="home-nav-card" href="pages/open-source.html">
+<div class="home-nav-icon">⚓</div>
+<div class="home-nav-title">Open Source</div>
+<div class="home-nav-desc">MIT licensed. View the source, contribute, or fork it for your own church tools. Free to use and build on forever.</div>
+<div class="home-nav-arrow">View on GitHub →</div>
+</a>
+<a class="home-nav-card" href="pages/contact.html">
+<div class="home-nav-icon">✉</div>
+<div class="home-nav-title">Contact</div>
+<div class="home-nav-desc">Have a question, bug report, or feature idea? Reach the AnchorCast team directly — we'd love to hear from you.</div>
+<div class="home-nav-arrow">Get in touch →</div>
+</a>
+<a class="home-nav-card" href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">
+<div class="home-nav-icon">📚</div>
+<div class="home-nav-title">Wiki</div>
+<div class="home-nav-desc">Full documentation wiki: interface overview, AI transcription, song manager, timer, NDI, troubleshooting, and FAQ.</div>
+<div class="home-nav-arrow">Open Wiki ↗</div>
+</a>
+<a class="home-nav-card" href="pages/download.html" style="border-color:var(--gold);background:var(--gold-glow)">
+<div class="home-nav-icon" style="background:linear-gradient(135deg,var(--gold),var(--gold-dk));border:none">⬇</div>
+<div class="home-nav-title" style="color:var(--gold)">Download Free</div>
+<div class="home-nav-desc">Windows installer: Python + Whisper AI bundled. Works completely offline. No internet required after install.</div>
+<div class="home-nav-arrow" style="font-size:13px">Download for Windows or MacOS →</div>
+</a>
+</div>
 </section>
-
 <!-- FOOTER -->
-
 <footer>
-  <div class="footer-top">
-    <div class="footer-brand">
-      <div class="footer-logo">
-        <div class="footer-logo-mark">✝</div>
+<div class="footer-top">
+<div class="footer-brand">
+<div class="footer-logo">
+<div class="footer-logo-mark">✝</div>
         AnchorCast
       </div>
-      <p class="footer-tagline">Free AI church presentation software — built for real Sunday services, every week, everywhere.</p>
-      <div class="footer-social">
-        <a href="https://github.com/anchorcastapp-team/anchorcastapp" target="_blank" rel="noopener" title="GitHub">⚓</a>
-        <a href="https://www.anchorcastapp.com" title="Website">🌐</a>
-        <a href="mailto:info@kaitamtech.com" title="Email">✉</a>
-      </div>
-    </div>
-    <div class="footer-col">
-      <h4>Product</h4>
-      <ul>
-        <li><a href="pages/features.html">Features</a></li>
-        <li><a href="pages/demo.html">Demo</a></li>
-        <li><a href="pages/download.html">⬇ Download Free</a></li>
-        <li><a href="pages/docs.html">Documentation</a></li>
-    <li><a href="pages/contact.html">Contact</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener noreferrer">Wiki ↗</a></li>
-      </ul>
-    </div>
-    <div class="footer-col">
-      <h4>Project</h4>
-      <ul>
-        <li><a href="pages/open-source.html">Open Source</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp" target="_blank" rel="noopener noreferrer">GitHub ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License ↗</a></li>
-      </ul>
-    </div>
-    <div class="footer-col">
-      <h4>Support</h4>
-      <ul>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" target="_blank" rel="noopener noreferrer">Report a Bug ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/discussions" target="_blank" rel="noopener noreferrer">Discussions ↗</a></li>
-        <li><a href="mailto:info@kaitamtech.com">info@kaitamtech.com</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer ↗</a></li>
-        <li><a href="pages/privacy.html">Privacy Policy</a></li>
-        <li><a href="pages/contact.html">Contact Us</a></li>
-      </ul>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <div class="footer-copy">
+<p class="footer-tagline">Free AI church presentation software — built for real Sunday services, every week, everywhere.</p>
+<div class="footer-social">
+<a href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank" title="GitHub">⚓</a>
+<a href="https://www.anchorcastapp.com" title="Website">🌐</a>
+<a href="mailto:info@kaitamtech.com" title="Email">✉</a>
+</div>
+</div>
+<div class="footer-col">
+<h4>Product</h4>
+<ul>
+<li><a href="pages/features.html">Features</a></li>
+<li><a href="pages/demo.html">Demo</a></li>
+<li><a href="pages/download.html">⬇ Download Free</a></li>
+<li><a href="pages/docs.html">Documentation</a></li>
+<li><a href="pages/contact.html">Contact</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">Wiki ↗</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h4>Project</h4>
+<ul>
+<li><a href="pages/open-source.html">Open Source</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank">GitHub ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CONTRIBUTING.md" rel="noopener noreferrer" target="_blank">Contribute ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CHANGELOG.md" rel="noopener noreferrer" target="_blank">Changelog ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/LICENSE" rel="noopener noreferrer" target="_blank">MIT License ↗</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h4>Support</h4>
+<ul>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" rel="noopener noreferrer" target="_blank">Report a Bug ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/discussions" rel="noopener noreferrer" target="_blank">Discussions ↗</a></li>
+<li><a href="mailto:info@kaitamtech.com">info@kaitamtech.com</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/DISCLAIMER.md" rel="noopener noreferrer" target="_blank">Disclaimer ↗</a></li>
+<li><a href="pages/privacy.html">Privacy Policy</a></li>
+<li><a href="pages/contact.html">Contact Us</a></li>
+</ul>
+</div>
+</div>
+<div class="footer-bottom">
+<div class="footer-copy">
       © 2026 AnchorCast · Developed by <strong style="color:#3a4060">Kaitam Technologies</strong> ·
       <a href="https://github.com/anchorcastapp-team/anchorcastapp">github.com/anchorcastapp-team</a>
       · Built with ♥ for churches everywhere
-    </div>
-    <div class="footer-badges">
-      <span class="footer-badge">✦ MIT License</span>
-      <span class="footer-badge">🔒 100% Free</span>
-      <span class="footer-badge">⚡ Open Source</span>
-      <span class="footer-badge">v1.5.0</span>
-    </div>
-  </div>
+    <br/><div class="github-status"><span aria-hidden="true" class="github-status-dot"></span><span data-github-status="">Connecting to GitHub…</span></div></div>
+<div class="footer-badges">
+<span class="footer-badge">✦ MIT License</span>
+<span class="footer-badge">🔒 100% Free</span>
+<span class="footer-badge">⚡ Open Source</span>
+<span aria-live="polite" class="footer-badge" data-github="version">Checking…</span>
+</div>
+</div>
 </footer>
 
-<script>
-(function(){
-  /* ── Scroll progress ── */
-  var bar = document.getElementById('scrollProg');
-  var navEl = document.getElementById('nav');
-  window.addEventListener('scroll', function(){
-    if(bar){
-      var pct = (window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100;
-      bar.style.width = pct + '%';
-    }
-    if(navEl) navEl.classList.toggle('scrolled', window.scrollY > 40);
-  }, {passive:true});
-
-  /* ── Mobile menu ── */
-  var mobBtn  = document.getElementById('mobMenuBtn') || document.getElementById('mobBtn');
-  var mobMenu = document.getElementById('mobMenu');
-
-  function openMenu(){
-    if(!mobMenu) return;
-    mobMenu.classList.add('open');
-    if(mobBtn) mobBtn.textContent = '✕';
-    /* Lock scroll without position:fixed to avoid iOS jump bug */
-    document.documentElement.style.overflow = 'hidden';
-  }
-  function closeMenu(){
-    if(!mobMenu) return;
-    mobMenu.classList.remove('open');
-    if(mobBtn) mobBtn.textContent = '☰';
-    /* Restore scroll */
-    document.documentElement.style.overflow = '';
-  }
-
-  if(mobBtn){
-    mobBtn.addEventListener('click', function(e){
-      e.stopPropagation();
-      mobMenu && mobMenu.classList.contains('open') ? closeMenu() : openMenu();
-    });
-  }
-
-  /* Close btn inside menu header */
-  var closeBtn = document.getElementById('mobMenuClose');
-  if(closeBtn) closeBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    closeMenu();
-  });
-
-  /* Nav links in mobile menu — just close overlay, let browser navigate normally */
-  if(mobMenu){
-    mobMenu.querySelectorAll('a').forEach(function(a){
-      a.addEventListener('click', function(){
-        /* Don't preventDefault — let navigation happen */
-        /* Just close the menu cleanly */
-        mobMenu.classList.remove('open');
-        if(mobBtn) mobBtn.textContent = '☰';
-        document.documentElement.style.overflow = '';
-      });
-    });
-  }
-
-  /* Close on outside click */
-  document.addEventListener('click', function(e){
-    if(mobMenu && mobMenu.classList.contains('open')){
-      if(mobBtn && !mobBtn.contains(e.target) && !mobMenu.contains(e.target)){
-        closeMenu();
-      }
-    }
-  });
-
-  /* ── Scroll reveal ── */
-  if('IntersectionObserver' in window){
-    var ro = new IntersectionObserver(function(entries){
-      entries.forEach(function(e){
-        if(e.isIntersecting){ e.target.classList.add('in'); ro.unobserve(e.target); }
-      });
-    }, {threshold:0.05, rootMargin:'0px 0px -20px 0px'});
-    document.querySelectorAll('.reveal').forEach(function(el){ ro.observe(el); });
-  } else {
-    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
-  }
-
-  /* ── GitHub stats ── */
-  function loadStats(){
-    var REPO  = 'anchorcastapp-team/anchorcastapp';
-    var BASE  = 'https://api.github.com/repos/' + REPO;
-
-    /* Known baselines — update these when GitHub reports higher numbers */
-    var KNOWN_DOWNLOADS = 69;
-    var KNOWN_STARS     = 4;
-
-    function setText(ids, val){
-      ids.forEach(function(id){
-        var el = document.getElementById(id); if(el) el.textContent = val;
-      });
-    }
-    function animateCounter(ids, n){
-      n = parseInt(n, 10) || 0;
-      var dur = 900, t0 = performance.now();
-      (function tick(now){
-        var p = Math.min((now-t0)/dur,1), ease=1-Math.pow(1-p,3);
-        setText(ids, Math.round(ease*n).toLocaleString());
-        if(p<1) requestAnimationFrame(tick);
-      })(performance.now());
-    }
-    function parseShields(raw){
-      raw = String(raw||'').replace(/,/g,'').trim();
-      if(!raw||raw==='N/A') return 0;
-      if(/k$/i.test(raw)) return Math.round(parseFloat(raw)*1000);
-      return parseInt(raw,10)||0;
-    }
-
-    /* Show known baselines immediately */
-    animateCounter(['dlCount','statDl'], KNOWN_DOWNLOADS);
-    animateCounter(['starCount','ghStars','starCountHero'], KNOWN_STARS);
-    setText(['releaseVer','relTag'], 'v1.5.0');
-
-    /* ── Downloads: GitHub API → Shields.io fallback ── */
-    fetch(BASE + '/releases?per_page=100')
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(releases){
-        var total = 0;
-        if(Array.isArray(releases)){
-          releases.forEach(function(r){
-            (r.assets||[]).forEach(function(a){ total += (a.download_count||0); });
-          });
-        }
-        console.log('[AnchorCast] GitHub API downloads:', total);
-        animateCounter(['dlCount','statDl'], Math.max(total, KNOWN_DOWNLOADS));
-      })
-      .catch(function(){
-        console.warn('[AnchorCast] GitHub API rate limited — using Shields.io for downloads');
-        fetch('https://img.shields.io/github/downloads/'+REPO+'/total.json')
-          .then(function(r){ return r.json(); })
-          .then(function(d){
-            var n = parseShields(d && d.value);
-            console.log('[AnchorCast] Shields.io downloads:', n);
-            animateCounter(['dlCount','statDl'], Math.max(n, KNOWN_DOWNLOADS));
-          }).catch(function(){
-            /* Both failed — keep baseline */
-          });
-      });
-
-    /* ── Stars: GitHub API → Shields.io fallback ── */
-    fetch(BASE)
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(d){
-        var stars = (d && d.stargazers_count) || 0;
-        console.log('[AnchorCast] GitHub API stars:', stars);
-        animateCounter(['starCount','ghStars','starCountHero'], Math.max(stars, KNOWN_STARS));
-      })
-      .catch(function(){
-        console.warn('[AnchorCast] GitHub API rate limited — using Shields.io for stars');
-        fetch('https://img.shields.io/github/stars/'+REPO+'.json')
-          .then(function(r){ return r.json(); })
-          .then(function(d){
-            var n = parseShields(d && d.value);
-            console.log('[AnchorCast] Shields.io stars:', n);
-            animateCounter(['starCount','ghStars','starCountHero'], Math.max(n, KNOWN_STARS));
-          }).catch(function(){
-            /* Both failed — keep baseline */
-          });
-      });
-
-    /* ── Version: GitHub API → Shields.io fallback ── */
-    fetch(BASE + '/releases/latest')
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.5.0');
-      })
-      .catch(function(){
-        fetch('https://img.shields.io/github/release/'+REPO+'.json')
-          .then(function(r){ return r.json(); })
-          .then(function(d){
-            setText(['releaseVer','relTag'],
-              (d&&d.value&&d.value!=='none') ? d.value : 'v1.5.0');
-          }).catch(function(){
-            setText(['releaseVer','relTag'], 'v1.5.0');
-          });
-      });
-  }
-  loadStats();
-
-  /* ── Docs sidebar ── */
-  (function(){
-    var toggle  = document.getElementById('sidebarToggle');
-    var sidebar = document.getElementById('docsSidebar');
-    if(!sidebar) return;
-    function upd(){ if(toggle) toggle.style.display = innerWidth<=800?'flex':'none'; if(innerWidth>800) sidebar.classList.remove('expanded'); }
-    upd(); window.addEventListener('resize', upd);
-    sidebar.querySelectorAll('.sidebar-link').forEach(function(l){
-      l.addEventListener('click', function(){ if(innerWidth<=800) sidebar.classList.remove('expanded'); });
-    });
-    var links = Array.from(document.querySelectorAll('.sidebar-link[href^="#"]'));
-    var heads = Array.from(document.querySelectorAll('.docs-content h1,.docs-content h2'));
-    if(links.length&&heads.length){
-      function spy(){
-        var cur=heads[0]?heads[0].id:'';
-        heads.forEach(function(h){ if(h.id&&scrollY>=h.offsetTop-100) cur=h.id; });
-        links.forEach(function(l){ l.classList.toggle('active',l.getAttribute('href')==='#'+cur); });
-      }
-      window.addEventListener('scroll',spy,{passive:true}); spy();
-    }
-  })();
-})();
-</script>
-</body>
+<script data-anchorcast-shared="true" defer="" src="assets/js/site.js"></script><script data-anchorcast-shared="true" defer="" src="assets/js/github-data.js"></script></body>
 </html>
