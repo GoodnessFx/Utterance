@@ -1,16 +1,17 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-  <link rel="icon" type="image/x-icon" href="../assets/favicon.ico"/>
-  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg"/>
-  <link rel="apple-touch-icon" href="../assets/favicon.svg"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta charset="utf-8"/>
+<link href="../assets/favicon.ico" rel="icon" type="image/x-icon"/>
+<link href="../assets/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="../assets/favicon.svg" rel="apple-touch-icon"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>Documentation — AnchorCast</title>
-<meta name="description" content="AnchorCast documentation — setup guides, keyboard shortcuts, and how-to guides for AI church presentation software."/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+<meta content="AnchorCast documentation — setup guides, keyboard shortcuts, and how-to guides for AI church presentation software." name="description"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&amp;family=Cinzel:wght@400;600;700&amp;family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&amp;family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&amp;display=swap" rel="stylesheet"/>
 <style>
 
 
@@ -1266,747 +1267,327 @@ footer{
 }
 /* ════════════════ END FOOTER v5 ════════════════ */
 </style>
-</head>
-<body>
+<meta content="#06080f" name="theme-color"/><meta content="index,follow,max-image-preview:large" name="robots"/><link href="https://www.anchorcastapp.com/pages/docs.html" rel="canonical"/><link data-anchorcast-modern="true" href="../assets/css/anchorcast-modern.css" rel="stylesheet"/></head>
+<body data-page="docs">
 <div class="scroll-progress" id="scrollProg"></div>
 <nav id="nav">
-  <a href="../index.html" class="logo">
-    <div class="logo-mark">✝</div>
-    <span class="logo-name">AnchorCast</span>
-  </a>
-  <ul class="nav-links">
-    <li><a href="../index.html">Home</a></li>
-    <li><a href="features.html">Features</a></li>
-    <li><a href="demo.html">Demo</a></li>
-    <li><a href="docs.html">Docs</a></li>
-    <li><a href="open-source.html">Open Source</a></li>
-    <li><a href="contact.html">Contact</a></li>
-    <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener">Wiki</a></li>
-    <li><a href="download.html" class="nav-dl">⬇ Free Download</a></li>
-  </ul>
-  <button class="mob-menu-btn" id="mobMenuBtn">☰</button>
-
+<a class="logo" href="../index.html">
+<div class="logo-mark">✝</div>
+<span class="logo-name">AnchorCast</span>
+</a>
+<ul class="nav-links">
+<li><a href="../index.html">Home</a></li>
+<li><a href="features.html">Features</a></li>
+<li><a href="demo.html">Demo</a></li>
+<li><a href="docs.html">Docs</a></li>
+<li><a href="open-source.html">Open Source</a></li>
+<li><a href="contact.html">Contact</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">Wiki</a></li>
+<li><a class="nav-dl" href="download.html">⬇ Free Download</a></li>
+</ul>
+<button aria-label="Open navigation menu" class="mob-menu-btn" id="mobMenuBtn" type="button">☰</button>
 </nav>
-
-<div class="mob-menu" id="mobMenu">
-  <div class="mob-menu-header">
-    <a href="../index.html" class="mob-menu-logo" onclick="document.getElementById('mobMenu').classList.remove('open');if(document.getElementById('mobMenuBtn'))document.getElementById('mobMenuBtn').textContent='☰';document.documentElement.style.overflow='';return true;">
-      <div class="mob-menu-logo-mark">✝</div>
-      <span>AnchorCast</span>
-    </a>
-    <button class="mob-menu-close" id="mobMenuClose" onclick="(function(){document.getElementById('mobMenu').classList.remove('open');var b=document.getElementById('mobMenuBtn');if(b)b.textContent='☰';document.documentElement.style.overflow='';})()">✕</button>
-  </div>
-    <a href="../index.html">Home</a>
-    <a href="features.html">Features</a>
-    <a href="demo.html">Demo</a>
-    <a href="docs.html">Docs</a>
-    <a href="open-source.html">Open Source</a>
-    <a href="contact.html">Contact</a></li>
-    <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener noreferrer">Wiki</a>
-    <a href="download.html" class="mob-dl">⬇ Free Download</a>
-  </div>
-
-
+<div class="mob-menu" id="mobMenu"><div class="mob-menu-header">
+<a class="mob-menu-logo" href="../index.html">
+<div class="mob-menu-logo-mark">✝</div>
+<span>AnchorCast</span>
+</a>
+<button aria-label="Close navigation menu" class="mob-menu-close" id="mobMenuClose" type="button">✕</button>
+</div><a href="../index.html">Home</a><a href="features.html">Features</a><a href="demo.html">Demo</a><a href="docs.html">Docs</a><a href="open-source.html">Open Source</a><a href="contact.html">Contact</a><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">Wiki</a><a class="mob-dl" href="download.html">⬇ Free Download</a></div>
 <div class="docs-wrap">
-  <!-- SIDEBAR -->
-  <aside class="docs-sidebar" id="docsSidebar">
-  <button class="docs-sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" style="display:none">
-    <span>📖 Documentation Menu</span>
-    <span class="docs-sidebar-toggle-arrow">▼</span>
-  </button>
-    <div class="sidebar-section">
-      <span class="sidebar-label">Overview</span>
-      <a href="#overview" class="sidebar-link active">Overview</a>
-      <a href="#installation" class="sidebar-link">Installation</a>
-      <a href="#first-session" class="sidebar-link">Your First Session</a>
-    </div>
-    <div class="sidebar-section">
-      <span class="sidebar-label">Core Features</span>
-      <a href="#transcription" class="sidebar-link">Transcription</a>
-      <a href="#verse-detection" class="sidebar-link">Verse Detection</a>
-      <a href="#bible-search" class="sidebar-link">Bible Search</a>
-      <a href="#songs" class="sidebar-link">Song Manager</a>
-      <a href="#display-output" class="sidebar-link">Display &amp; Output</a>
-    </div>
-    <div class="sidebar-section">
-      <span class="sidebar-label">Tools</span>
-      <a href="#timer" class="sidebar-link">Countdown Timer</a>
-      <a href="#remote" class="sidebar-link">Wi-Fi Remote</a>
-      <a href="#ndi" class="sidebar-link">NDI Output</a>
-    </div>
-    <div class="sidebar-section">
-      <span class="sidebar-label">Reference</span>
-      <a href="#shortcuts" class="sidebar-link">Keyboard Shortcuts</a>
-      <a href="#requirements" class="sidebar-link">System Requirements</a>
-      <a href="#troubleshooting" class="sidebar-link">Troubleshooting</a>
-      <a href="#faq" class="sidebar-link">FAQ</a>
-    </div>
-  </aside>
-
-  <!-- MAIN CONTENT -->
-  <main class="docs-content">
-    <div class="pill" style="margin-bottom:22px"><div class="pill-dot"></div>v1.5.0 · Updated 2026</div>
-    <h1 id="overview">AnchorCast Documentation</h1>
-    <p>AnchorCast is a free, open-source AI-powered desktop app for Windows that listens to your preacher in real time, detects Bible verses, and displays them on screen automatically — with no internet connection required after install.</p>
-
-    <div class="docs-callout">
-      <div class="docs-callout-icon">🎁</div>
-      <p><strong>100% Free, forever.</strong> No subscription, no trial, no credit card required. AnchorCast is MIT-licensed open-source software built by and for churches.</p>
-    </div>
-
-    <div class="docs-panel-grid">
-      <div class="docs-panel"><strong>Get Started</strong><span>Go from install to your first verse on screen in minutes.</span></div>
-      <div class="docs-panel"><strong>System Requirements</strong><span>Windows 10/11 · 64-bit · 8GB RAM · GPU optional.</span></div>
-      <div class="docs-panel"><strong>How It Works</strong><span>Audio → Whisper AI → Pattern match + semantic search → Display.</span></div>
-      <div class="docs-panel"><strong>Open Source</strong><span>MIT license. View, fork, and contribute on GitHub.</span></div>
-    </div>
-
-    <h2 id="installation">Installation</h2>
-    <p>Download the latest installer from <a href="download.html">the download page</a> or from the <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases" target="_blank" rel="noopener noreferrer">GitHub releases page</a>.</p>
-    <ol class="docs-steps">
-      <li><div class="docs-step-n">1</div><p>Run <code>AnchorCastSetup_v1.5.0_full.exe</code> and follow the installer prompts.</p></li>
-      <li><div class="docs-step-n">2</div><p>On first launch, AnchorCast sets up its internal components (Whisper AI model, Bible index, etc.). This takes 1–3 minutes.</p></li>
-      <li><div class="docs-step-n">3</div><p>When the main window opens, the interactive tutorial will guide you through the interface. Restart it anytime from <strong>Settings → Help → Restart Tutorial</strong>.</p></li>
-    </ol>
-    <div class="docs-callout info">
-      <div class="docs-callout-icon">ℹ️</div>
-      <p><strong>No internet required after install.</strong> AnchorCast downloads AI models during setup. After that, everything runs offline on your machine.</p>
-    </div>
-
-    <h2 id="first-session">Your First Session</h2>
-    <p>When AnchorCast opens, you'll see the main dashboard with six panels:</p>
-    <div class="docs-panel-grid">
-      <div class="docs-panel"><strong>Live Transcript</strong><span>Top left — real-time transcription of the sermon as the preacher speaks.</span></div>
-      <div class="docs-panel"><strong>Program Preview</strong><span>Top center-left — shows how the verse will look before going live to screen.</span></div>
-      <div class="docs-panel"><strong>Live Output</strong><span>Top center-right — what's currently being broadcast to your projector or NDI.</span></div>
-      <div class="docs-panel"><strong>Queue</strong><span>Top right — verses waiting to be displayed, in order.</span></div>
-      <div class="docs-panel"><strong>Scripture Search</strong><span>Bottom left — look up any verse by reference or topic.</span></div>
-      <div class="docs-panel"><strong>AI Detections</strong><span>Bottom right — verses automatically detected from the live sermon.</span></div>
-    </div>
-    <h3>To get started:</h3>
-    <ol class="docs-steps">
-      <li><div class="docs-step-n">1</div><p>Click <strong>Start Transcript</strong> in the Live Transcript panel.</p></li>
-      <li><div class="docs-step-n">2</div><p>Select your microphone when prompted (or set it in <strong>Settings → Microphone</strong> beforehand).</p></li>
-      <li><div class="docs-step-n">3</div><p>Start speaking or play a sermon — detected verses appear in the AI Detections panel.</p></li>
-      <li><div class="docs-step-n">4</div><p>Click the <strong>▶</strong> icon on any detected verse to send it to Preview.</p></li>
-      <li><div class="docs-step-n">5</div><p>Press <code>L</code> or click <strong>Go Live</strong> to broadcast it to your display output.</p></li>
-    </ol>
-
-    <h2 id="transcription">Transcription</h2>
-    <p>AnchorCast uses Whisper AI to transcribe sermon audio in real time. Choose between two modes:</p>
-    <h3>Offline Mode (Recommended)</h3>
-    <p>Whisper AI runs 100% locally on your PC. No audio ever leaves your machine. Works without internet. Requires a capable CPU or GPU — see <a href="#requirements">System Requirements</a>.</p>
-    <h3>Online Mode</h3>
-    <p>For faster transcription on lower-spec machines, audio can be streamed to a cloud speech-to-text service. Requires an internet connection.</p>
-    <h3>Microphone Setup</h3>
-    <p>Go to <strong>Settings → Microphone</strong> to select your audio input device. AnchorCast remembers your selection between sessions.</p>
-    <div class="docs-callout">
-      <div class="docs-callout-icon">💡</div>
-      <p><strong>Best practice:</strong> Use a USB audio interface connected to your church's mixing board. The improvement in transcription accuracy over a laptop microphone is dramatic.</p>
-    </div>
-    <h3>Confidence Indicators</h3>
-    <table class="docs-table">
-      <thead><tr><th>Level</th><th>Score</th><th>Meaning</th></tr></thead>
-      <tbody>
-        <tr><td>🟢 High</td><td>80%+</td><td>Very accurate transcription</td></tr>
-        <tr><td>🟡 Medium</td><td>60–80%</td><td>Mostly accurate, some words may be off</td></tr>
-        <tr><td>🔴 Low</td><td>Below 60%</td><td>Noisy audio or unclear speech</td></tr>
-      </tbody>
-    </table>
-
-    <h2 id="verse-detection">Verse Detection</h2>
-    <p>AnchorCast detects Bible verses in two ways, combining both for maximum coverage:</p>
-    <h3>Direct Reference Detection</h3>
-    <p>When the speaker says something like <em>"Turn to John 3:16"</em> or <em>"In the book of Psalms, chapter 23"</em>, AnchorCast picks it up immediately using pattern matching. Works for standard references, spoken references, abbreviated book names, and context-aware references. Detection is near-instant (under 5ms).</p>
-    <h3>Semantic Search (AI Detection)</h3>
-    <p>When the speaker quotes or paraphrases scripture without giving a reference, AnchorCast uses AI to find the matching verse. Spoken text is converted to an embedding and searched against an index of 31,000+ Bible verses. Takes 200–400ms for new queries; common queries are cached for near-instant results.</p>
-    <h3>Confidence Scores</h3>
-    <table class="docs-table">
-      <thead><tr><th>Type</th><th>Score Range</th><th>Notes</th></tr></thead>
-      <tbody>
-        <tr><td>Direct references</td><td>90–100%</td><td>Near-certain matches</td></tr>
-        <tr><td>Semantic matches</td><td>35–89%</td><td>Higher = closer to verse content</td></tr>
-        <tr><td>High confidence</td><td>80%+</td><td>Auto-queued in Auto display mode</td></tr>
-        <tr><td>Below threshold</td><td>&lt;35%</td><td>Filtered out, not shown</td></tr>
-      </tbody>
-    </table>
-
-    <h2 id="bible-search">Bible Search</h2>
-    <p>The Scripture Search panel lets you look up verses manually. Toggle between two modes with the <code>Tab</code> key.</p>
-    <h3>Book Mode</h3>
-    <p>Look up a specific verse when you know the reference. Type a book name, chapter, and verse — AnchorCast autocompletes book names as you type.</p>
-    <h3>Context Mode</h3>
-    <p>Find a verse by topic, theme, quote, or paraphrase. Uses the same AI-powered semantic search as automatic detection — searching <em>"God's love for humanity"</em> will find John 3:16 even without those exact words in the verse text.</p>
-    <h3>Supported Translations</h3>
-    <table class="docs-table">
-      <thead><tr><th>Translation</th><th>Code</th></tr></thead>
-      <tbody>
-        <tr><td>King James Version</td><td><code>KJV</code></td></tr>
-        <tr><td>New King James Version</td><td><code>NKJV</code></td></tr>
-        <tr><td>New International Version</td><td><code>NIV</code></td></tr>
-        <tr><td>New Living Translation</td><td><code>NLT</code></td></tr>
-        <tr><td>English Standard Version</td><td><code>ESV</code></td></tr>
-        <tr><td>New American Standard Bible</td><td><code>NASB</code></td></tr>
-      </tbody>
-    </table>
-
-    <h2 id="songs">Song Manager</h2>
-    <p>AnchorCast includes a full song library and projection system. Access it from the <strong>Songs</strong> tab in the main window.</p>
-    <ul>
-      <li>Import songs from plain text, CCLI SongSelect, or OpenLyrics format</li>
-      <li>Search by title, artist, or first line</li>
-      <li>Project songs slide-by-slide with keyboard navigation (<code>→</code> / <code>←</code>)</li>
-      <li>Control font size, background, and layout per song</li>
-    </ul>
-
-    <h2 id="display-output">Display &amp; Output</h2>
-    <p>AnchorCast can send its verse display to external screens and broadcast software using several methods.</p>
-    <h3>Auto Mode</h3>
-    <p>Automatically displays the highest-confidence detected verse. A 2.5-second cooldown prevents rapid flickering. Best for mid-week Bible studies or hands-off operation.</p>
-    <h3>Manual Mode</h3>
-    <p>Nothing goes to broadcast until you explicitly send it. Detected verses still appear in the AI Detections panel and queue, but you decide which ones to display and when. Best for Sunday services.</p>
-    <p>You can switch between Auto and Manual mode at any time during a session.</p>
-
-    <h2 id="timer">Countdown Timer</h2>
-    <p>A standalone countdown timer window that can be displayed on a separate monitor or projected to the congregation before the service.</p>
-    <ul>
-      <li>Set any countdown duration</li>
-      <li>Syncs with the main projection output</li>
-      <li>Fully customizable font, color, and background</li>
-      <li>Controlled via Wi-Fi remote or keyboard shortcuts</li>
-    </ul>
-    <div class="docs-shortcut-grid" style="max-width:460px">
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Start / Pause Timer</span><div class="key-row"><span class="key">Space</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Reset Timer</span><div class="key-row"><span class="key">R</span></div></div>
-    </div>
-
-    <h2 id="remote">Wi-Fi Remote Control</h2>
-    <p>AnchorCast runs a local web server on your PC. Open any browser on a phone or tablet on the same Wi-Fi network to control the app remotely.</p>
-    <ol class="docs-steps">
-      <li><div class="docs-step-n">1</div><p>Enable Wi-Fi Remote in <strong>Settings → Remote Control</strong>.</p></li>
-      <li><div class="docs-step-n">2</div><p>Note the IP address shown (e.g., <code>192.168.1.10:8080</code>).</p></li>
-      <li><div class="docs-step-n">3</div><p>Open that address in a browser on your phone or tablet.</p></li>
-    </ol>
-    <p>The remote lets you advance song slides, send verses to live, control the timer, and toggle On Air status.</p>
-
-    <h2 id="ndi">NDI Output</h2>
-    <p>AnchorCast can send its output as an NDI source to any NDI-compatible software on your network — including OBS Studio, vMix, Resolume, and ProPresenter.</p>
-    <p>The NDI source appears as <strong>"AnchorCast Main"</strong> in your software's source list. Supports alpha transparency, configurable FPS (24/30/60), and resolutions up to 4K.</p>
-    <div class="docs-callout info">
-      <div class="docs-callout-icon">ℹ️</div>
-      <p>NDI requires both machines to be on the same local network. Install the free <a href="https://ndi.tv/tools/" target="_blank" rel="noopener noreferrer">NDI Tools</a> package if your broadcast software doesn't detect the source automatically.</p>
-    </div>
-
-    <h2 id="shortcuts">Keyboard Shortcuts</h2>
-    <div class="docs-shortcut-grid">
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Go Live / Off Air</span><div class="key-row"><span class="key">L</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Clear Screen</span><div class="key-row"><span class="key">C</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Next Song Slide</span><div class="key-row"><span class="key">→</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Previous Slide</span><div class="key-row"><span class="key">←</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Start / Stop Transcript</span><div class="key-row"><span class="key">T</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Open Settings</span><div class="key-row"><span class="key">Ctrl</span><span class="key">,</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Bible Search</span><div class="key-row"><span class="key">Ctrl</span><span class="key">F</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Start / Pause Timer</span><div class="key-row"><span class="key">Space</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Reset Timer</span><div class="key-row"><span class="key">R</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Toggle Auto / Manual</span><div class="key-row"><span class="key">A</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Fullscreen Output</span><div class="key-row"><span class="key">F11</span></div></div>
-      <div class="docs-shortcut"><span class="docs-shortcut-label">Quit</span><div class="key-row"><span class="key">Ctrl</span><span class="key">Q</span></div></div>
-    </div>
-
-    <h2 id="requirements">System Requirements</h2>
-    <table class="docs-table">
-      <thead><tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr></thead>
-      <tbody>
-        <tr><td>OS</td><td>Windows 10 64-bit</td><td>Windows 11 64-bit</td></tr>
-        <tr><td>CPU</td><td>Intel Core i5 / Ryzen 5</td><td>Intel Core i7 / Ryzen 7+</td></tr>
-        <tr><td>RAM</td><td>8 GB</td><td>16 GB+</td></tr>
-        <tr><td>GPU</td><td>Not required</td><td>NVIDIA GPU (faster Whisper)</td></tr>
-        <tr><td>Storage</td><td>4 GB free</td><td>8 GB+ (all Whisper models)</td></tr>
-        <tr><td>Audio</td><td>Any microphone</td><td>USB audio interface</td></tr>
-        <tr><td>Network</td><td>Not required</td><td>Wi-Fi for remote / NDI</td></tr>
-      </tbody>
-    </table>
-
-    <h2 id="troubleshooting">Troubleshooting</h2>
-    <h3>Transcription is slow or laggy</h3>
-    <p>Try switching to the <code>tiny</code> or <code>base</code> Whisper model in <strong>Settings → Transcription → Model Size</strong>. Smaller models use less CPU but are slightly less accurate. If you have an NVIDIA GPU, ensure CUDA is enabled.</p>
-    <h3>Verse detection is missing references</h3>
-    <p>Check your microphone levels in <strong>Settings → Microphone</strong>. Low input gain or background noise significantly impacts detection. Consider using a direct audio feed from your mixer board.</p>
-    <h3>NDI source not appearing in OBS</h3>
-    <p>Ensure both machines are on the same local network. Try disabling the Windows Firewall temporarily to test. Install <a href="https://ndi.tv/tools/" target="_blank" rel="noopener noreferrer">NDI Tools</a> and use NDI Monitor to verify AnchorCast is broadcasting.</p>
-    <h3>App crashes on startup</h3>
-    <p>Delete the <code>%AppData%\AnchorCast\models</code> folder and relaunch — this forces AI models to re-download and can fix corrupted installs. If the issue persists, <a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" target="_blank" rel="noopener noreferrer">open a GitHub issue</a>.</p>
-
-    <h2 id="faq">FAQ</h2>
-    <h3>Is AnchorCast really free?</h3>
-    <p>Yes — completely free, forever. No subscription, no trial period, no credit card required. AnchorCast is MIT-licensed open-source software.</p>
-    <h3>Does it work without internet?</h3>
-    <p>Yes. After the initial setup (which downloads AI models), AnchorCast runs entirely offline. No audio, no data, nothing leaves your machine in offline mode.</p>
-    <h3>Does AnchorCast work on Mac or Linux?</h3>
-    <p>Not officially yet — the current release is Windows only. macOS and Linux builds are planned. Follow progress on <a href="https://github.com/anchorcastapp-team/anchorcastapp/discussions" target="_blank" rel="noopener noreferrer">GitHub Discussions</a>.</p>
-    <h3>How accurate is verse detection?</h3>
-    <p>Very accurate for direct scripture references (90–100% confidence). Semantic detection of paraphrased scripture varies based on audio quality and how closely the speaker's words match the verse text. A clean audio feed from your mixer board makes a significant difference.</p>
-    <h3>Can I use AnchorCast with ProPresenter or MediaShout?</h3>
-    <p>Yes, via NDI. AnchorCast sends its output as an NDI source that you can pull into any NDI-compatible presentation software. You can also use HDMI output to a secondary monitor.</p>
-    <h3>How do I contribute or report a bug?</h3>
-    <p>Open an issue or pull request on <a href="https://github.com/anchorcastapp-team/anchorcastapp" target="_blank" rel="noopener noreferrer">GitHub</a>. We welcome contributions of all kinds — code, documentation, translations, and bug reports.</p>
-
-    <div style="margin-top:52px;padding-top:28px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:14px;flex-wrap:wrap;position:relative;z-index:1">
-      <a href="download.html" class="btn-gold">⬇ Download AnchorCast Free</a>
-      <a href="https://github.com/anchorcastapp-team/anchorcastapp" class="btn-ghost" target="_blank" rel="noopener">View on GitHub ↗</a>
-    </div>
-  </main>
+<!-- SIDEBAR -->
+<aside class="docs-sidebar" id="docsSidebar">
+<button class="docs-sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" style="display:none">
+<span>📖 Documentation Menu</span>
+<span class="docs-sidebar-toggle-arrow">▼</span>
+</button>
+<div class="sidebar-section">
+<span class="sidebar-label">Overview</span>
+<a class="sidebar-link active" href="#overview">Overview</a>
+<a class="sidebar-link" href="#installation">Installation</a>
+<a class="sidebar-link" href="#first-session">Your First Session</a>
 </div>
-
+<div class="sidebar-section">
+<span class="sidebar-label">Core Features</span>
+<a class="sidebar-link" href="#transcription">Transcription</a>
+<a class="sidebar-link" href="#verse-detection">Verse Detection</a>
+<a class="sidebar-link" href="#bible-search">Bible Search</a>
+<a class="sidebar-link" href="#songs">Song Manager</a>
+<a class="sidebar-link" href="#display-output">Display &amp; Output</a>
+</div>
+<div class="sidebar-section">
+<span class="sidebar-label">Tools</span>
+<a class="sidebar-link" href="#timer">Countdown Timer</a>
+<a class="sidebar-link" href="#remote">Wi-Fi Remote</a>
+<a class="sidebar-link" href="#ndi">NDI Output</a>
+</div>
+<div class="sidebar-section">
+<span class="sidebar-label">Reference</span>
+<a class="sidebar-link" href="#shortcuts">Keyboard Shortcuts</a>
+<a class="sidebar-link" href="#requirements">System Requirements</a>
+<a class="sidebar-link" href="#troubleshooting">Troubleshooting</a>
+<a class="sidebar-link" href="#faq">FAQ</a>
+</div>
+</aside>
+<!-- MAIN CONTENT -->
+<main class="docs-content">
+<div class="pill" style="margin-bottom:22px"><div class="pill-dot"></div><span aria-live="polite" data-github="version">Checking…</span> · Updated automatically from GitHub</div>
+<h1 id="overview">AnchorCast Documentation</h1>
+<p>AnchorCast is a free, open-source AI-powered desktop app for Windows that listens to your preacher in real time, detects Bible verses, and displays them on screen automatically — with no internet connection required after install.</p>
+<div class="docs-callout">
+<div class="docs-callout-icon">🎁</div>
+<p><strong>100% Free, forever.</strong> No subscription, no trial, no credit card required. AnchorCast is MIT-licensed open-source software built by and for churches.</p>
+</div>
+<div class="docs-panel-grid">
+<div class="docs-panel"><strong>Get Started</strong><span>Go from install to your first verse on screen in minutes.</span></div>
+<div class="docs-panel"><strong>System Requirements</strong><span>Windows 10/11 · 64-bit · 8GB RAM · GPU optional.</span></div>
+<div class="docs-panel"><strong>How It Works</strong><span>Audio → Whisper AI → Pattern match + semantic search → Display.</span></div>
+<div class="docs-panel"><strong>Open Source</strong><span>MIT license. View, fork, and contribute on GitHub.</span></div>
+</div>
+<h2 id="installation">Installation</h2>
+<p>Download the latest installer from <a href="download.html">the download page</a> or from the <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases" rel="noopener noreferrer" target="_blank">GitHub releases page</a>.</p>
+<ol class="docs-steps">
+<li><div class="docs-step-n">1</div><p>Run <code data-asset-name="windows-full">Checking latest Windows installer…</code> and follow the installer prompts.</p></li>
+<li><div class="docs-step-n">2</div><p>On first launch, AnchorCast sets up its internal components (Whisper AI model, Bible index, etc.). This takes 1–3 minutes.</p></li>
+<li><div class="docs-step-n">3</div><p>When the main window opens, the interactive tutorial will guide you through the interface. Restart it anytime from <strong>Settings → Help → Restart Tutorial</strong>.</p></li>
+</ol>
+<div class="docs-callout info">
+<div class="docs-callout-icon">ℹ️</div>
+<p><strong>No internet required after install.</strong> AnchorCast downloads AI models during setup. After that, everything runs offline on your machine.</p>
+</div>
+<h2 id="first-session">Your First Session</h2>
+<p>When AnchorCast opens, you'll see the main dashboard with six panels:</p>
+<div class="docs-panel-grid">
+<div class="docs-panel"><strong>Live Transcript</strong><span>Top left — real-time transcription of the sermon as the preacher speaks.</span></div>
+<div class="docs-panel"><strong>Program Preview</strong><span>Top center-left — shows how the verse will look before going live to screen.</span></div>
+<div class="docs-panel"><strong>Live Output</strong><span>Top center-right — what's currently being broadcast to your projector or NDI.</span></div>
+<div class="docs-panel"><strong>Queue</strong><span>Top right — verses waiting to be displayed, in order.</span></div>
+<div class="docs-panel"><strong>Scripture Search</strong><span>Bottom left — look up any verse by reference or topic.</span></div>
+<div class="docs-panel"><strong>AI Detections</strong><span>Bottom right — verses automatically detected from the live sermon.</span></div>
+</div>
+<h3>To get started:</h3>
+<ol class="docs-steps">
+<li><div class="docs-step-n">1</div><p>Click <strong>Start Transcript</strong> in the Live Transcript panel.</p></li>
+<li><div class="docs-step-n">2</div><p>Select your microphone when prompted (or set it in <strong>Settings → Microphone</strong> beforehand).</p></li>
+<li><div class="docs-step-n">3</div><p>Start speaking or play a sermon — detected verses appear in the AI Detections panel.</p></li>
+<li><div class="docs-step-n">4</div><p>Click the <strong>▶</strong> icon on any detected verse to send it to Preview.</p></li>
+<li><div class="docs-step-n">5</div><p>Press <code>L</code> or click <strong>Go Live</strong> to broadcast it to your display output.</p></li>
+</ol>
+<h2 id="transcription">Transcription</h2>
+<p>AnchorCast uses Whisper AI to transcribe sermon audio in real time. Choose between two modes:</p>
+<h3>Offline Mode (Recommended)</h3>
+<p>Whisper AI runs 100% locally on your PC. No audio ever leaves your machine. Works without internet. Requires a capable CPU or GPU — see <a href="#requirements">System Requirements</a>.</p>
+<h3>Online Mode</h3>
+<p>For faster transcription on lower-spec machines, audio can be streamed to a cloud speech-to-text service. Requires an internet connection.</p>
+<h3>Microphone Setup</h3>
+<p>Go to <strong>Settings → Microphone</strong> to select your audio input device. AnchorCast remembers your selection between sessions.</p>
+<div class="docs-callout">
+<div class="docs-callout-icon">💡</div>
+<p><strong>Best practice:</strong> Use a USB audio interface connected to your church's mixing board. The improvement in transcription accuracy over a laptop microphone is dramatic.</p>
+</div>
+<h3>Confidence Indicators</h3>
+<table class="docs-table">
+<thead><tr><th>Level</th><th>Score</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>🟢 High</td><td>80%+</td><td>Very accurate transcription</td></tr>
+<tr><td>🟡 Medium</td><td>60–80%</td><td>Mostly accurate, some words may be off</td></tr>
+<tr><td>🔴 Low</td><td>Below 60%</td><td>Noisy audio or unclear speech</td></tr>
+</tbody>
+</table>
+<h2 id="verse-detection">Verse Detection</h2>
+<p>AnchorCast detects Bible verses in two ways, combining both for maximum coverage:</p>
+<h3>Direct Reference Detection</h3>
+<p>When the speaker says something like <em>"Turn to John 3:16"</em> or <em>"In the book of Psalms, chapter 23"</em>, AnchorCast picks it up immediately using pattern matching. Works for standard references, spoken references, abbreviated book names, and context-aware references. Detection is near-instant (under 5ms).</p>
+<h3>Semantic Search (AI Detection)</h3>
+<p>When the speaker quotes or paraphrases scripture without giving a reference, AnchorCast uses AI to find the matching verse. Spoken text is converted to an embedding and searched against an index of 31,000+ Bible verses. Takes 200–400ms for new queries; common queries are cached for near-instant results.</p>
+<h3>Confidence Scores</h3>
+<table class="docs-table">
+<thead><tr><th>Type</th><th>Score Range</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Direct references</td><td>90–100%</td><td>Near-certain matches</td></tr>
+<tr><td>Semantic matches</td><td>35–89%</td><td>Higher = closer to verse content</td></tr>
+<tr><td>High confidence</td><td>80%+</td><td>Auto-queued in Auto display mode</td></tr>
+<tr><td>Below threshold</td><td>&lt;35%</td><td>Filtered out, not shown</td></tr>
+</tbody>
+</table>
+<h2 id="bible-search">Bible Search</h2>
+<p>The Scripture Search panel lets you look up verses manually. Toggle between two modes with the <code>Tab</code> key.</p>
+<h3>Book Mode</h3>
+<p>Look up a specific verse when you know the reference. Type a book name, chapter, and verse — AnchorCast autocompletes book names as you type.</p>
+<h3>Context Mode</h3>
+<p>Find a verse by topic, theme, quote, or paraphrase. Uses the same AI-powered semantic search as automatic detection — searching <em>"God's love for humanity"</em> will find John 3:16 even without those exact words in the verse text.</p>
+<h3>Supported Translations</h3>
+<table class="docs-table">
+<thead><tr><th>Translation</th><th>Code</th></tr></thead>
+<tbody>
+<tr><td>King James Version</td><td><code>KJV</code></td></tr>
+<tr><td>New King James Version</td><td><code>NKJV</code></td></tr>
+<tr><td>New International Version</td><td><code>NIV</code></td></tr>
+<tr><td>New Living Translation</td><td><code>NLT</code></td></tr>
+<tr><td>English Standard Version</td><td><code>ESV</code></td></tr>
+<tr><td>New American Standard Bible</td><td><code>NASB</code></td></tr>
+</tbody>
+</table>
+<h2 id="songs">Song Manager</h2>
+<p>AnchorCast includes a full song library and projection system. Access it from the <strong>Songs</strong> tab in the main window.</p>
+<ul>
+<li>Import songs from plain text, CCLI SongSelect, or OpenLyrics format</li>
+<li>Search by title, artist, or first line</li>
+<li>Project songs slide-by-slide with keyboard navigation (<code>→</code> / <code>←</code>)</li>
+<li>Control font size, background, and layout per song</li>
+</ul>
+<h2 id="display-output">Display &amp; Output</h2>
+<p>AnchorCast can send its verse display to external screens and broadcast software using several methods.</p>
+<h3>Auto Mode</h3>
+<p>Automatically displays the highest-confidence detected verse. A 2.5-second cooldown prevents rapid flickering. Best for mid-week Bible studies or hands-off operation.</p>
+<h3>Manual Mode</h3>
+<p>Nothing goes to broadcast until you explicitly send it. Detected verses still appear in the AI Detections panel and queue, but you decide which ones to display and when. Best for Sunday services.</p>
+<p>You can switch between Auto and Manual mode at any time during a session.</p>
+<h2 id="timer">Countdown Timer</h2>
+<p>A standalone countdown timer window that can be displayed on a separate monitor or projected to the congregation before the service.</p>
+<ul>
+<li>Set any countdown duration</li>
+<li>Syncs with the main projection output</li>
+<li>Fully customizable font, color, and background</li>
+<li>Controlled via Wi-Fi remote or keyboard shortcuts</li>
+</ul>
+<div class="docs-shortcut-grid" style="max-width:460px">
+<div class="docs-shortcut"><span class="docs-shortcut-label">Start / Pause Timer</span><div class="key-row"><span class="key">Space</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Reset Timer</span><div class="key-row"><span class="key">R</span></div></div>
+</div>
+<h2 id="remote">Wi-Fi Remote Control</h2>
+<p>AnchorCast runs a local web server on your PC. Open any browser on a phone or tablet on the same Wi-Fi network to control the app remotely.</p>
+<ol class="docs-steps">
+<li><div class="docs-step-n">1</div><p>Enable Wi-Fi Remote in <strong>Settings → Remote Control</strong>.</p></li>
+<li><div class="docs-step-n">2</div><p>Note the IP address shown (e.g., <code>192.168.1.10:8080</code>).</p></li>
+<li><div class="docs-step-n">3</div><p>Open that address in a browser on your phone or tablet.</p></li>
+</ol>
+<p>The remote lets you advance song slides, send verses to live, control the timer, and toggle On Air status.</p>
+<h2 id="ndi">NDI Output</h2>
+<p>AnchorCast can send its output as an NDI source to any NDI-compatible software on your network — including OBS Studio, vMix, Resolume, and ProPresenter.</p>
+<p>The NDI source appears as <strong>"AnchorCast Main"</strong> in your software's source list. Supports alpha transparency, configurable FPS (24/30/60), and resolutions up to 4K.</p>
+<div class="docs-callout info">
+<div class="docs-callout-icon">ℹ️</div>
+<p>NDI requires both machines to be on the same local network. Install the free <a href="https://ndi.tv/tools/" rel="noopener noreferrer" target="_blank">NDI Tools</a> package if your broadcast software doesn't detect the source automatically.</p>
+</div>
+<h2 id="shortcuts">Keyboard Shortcuts</h2>
+<div class="docs-shortcut-grid">
+<div class="docs-shortcut"><span class="docs-shortcut-label">Go Live / Off Air</span><div class="key-row"><span class="key">L</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Clear Screen</span><div class="key-row"><span class="key">C</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Next Song Slide</span><div class="key-row"><span class="key">→</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Previous Slide</span><div class="key-row"><span class="key">←</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Start / Stop Transcript</span><div class="key-row"><span class="key">T</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Open Settings</span><div class="key-row"><span class="key">Ctrl</span><span class="key">,</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Bible Search</span><div class="key-row"><span class="key">Ctrl</span><span class="key">F</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Start / Pause Timer</span><div class="key-row"><span class="key">Space</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Reset Timer</span><div class="key-row"><span class="key">R</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Toggle Auto / Manual</span><div class="key-row"><span class="key">A</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Fullscreen Output</span><div class="key-row"><span class="key">F11</span></div></div>
+<div class="docs-shortcut"><span class="docs-shortcut-label">Quit</span><div class="key-row"><span class="key">Ctrl</span><span class="key">Q</span></div></div>
+</div>
+<h2 id="requirements">System Requirements</h2>
+<table class="docs-table">
+<thead><tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr></thead>
+<tbody>
+<tr><td>OS</td><td>Windows 10 64-bit</td><td>Windows 11 64-bit</td></tr>
+<tr><td>CPU</td><td>Intel Core i5 / Ryzen 5</td><td>Intel Core i7 / Ryzen 7+</td></tr>
+<tr><td>RAM</td><td>8 GB</td><td>16 GB+</td></tr>
+<tr><td>GPU</td><td>Not required</td><td>NVIDIA GPU (faster Whisper)</td></tr>
+<tr><td>Storage</td><td>4 GB free</td><td>8 GB+ (all Whisper models)</td></tr>
+<tr><td>Audio</td><td>Any microphone</td><td>USB audio interface</td></tr>
+<tr><td>Network</td><td>Not required</td><td>Wi-Fi for remote / NDI</td></tr>
+</tbody>
+</table>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3>Transcription is slow or laggy</h3>
+<p>Try switching to the <code>tiny</code> or <code>base</code> Whisper model in <strong>Settings → Transcription → Model Size</strong>. Smaller models use less CPU but are slightly less accurate. If you have an NVIDIA GPU, ensure CUDA is enabled.</p>
+<h3>Verse detection is missing references</h3>
+<p>Check your microphone levels in <strong>Settings → Microphone</strong>. Low input gain or background noise significantly impacts detection. Consider using a direct audio feed from your mixer board.</p>
+<h3>NDI source not appearing in OBS</h3>
+<p>Ensure both machines are on the same local network. Try disabling the Windows Firewall temporarily to test. Install <a href="https://ndi.tv/tools/" rel="noopener noreferrer" target="_blank">NDI Tools</a> and use NDI Monitor to verify AnchorCast is broadcasting.</p>
+<h3>App crashes on startup</h3>
+<p>Delete the <code>%AppData%\AnchorCast\models</code> folder and relaunch — this forces AI models to re-download and can fix corrupted installs. If the issue persists, <a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" rel="noopener noreferrer" target="_blank">open a GitHub issue</a>.</p>
+<h2 id="faq">FAQ</h2>
+<h3>Is AnchorCast really free?</h3>
+<p>Yes — completely free, forever. No subscription, no trial period, no credit card required. AnchorCast is MIT-licensed open-source software.</p>
+<h3>Does it work without internet?</h3>
+<p>Yes. After the initial setup (which downloads AI models), AnchorCast runs entirely offline. No audio, no data, nothing leaves your machine in offline mode.</p>
+<h3>Does AnchorCast work on Mac or Linux?</h3>
+<p>Not officially yet — the current release is Windows only. macOS and Linux builds are planned. Follow progress on <a href="https://github.com/anchorcastapp-team/anchorcastapp/discussions" rel="noopener noreferrer" target="_blank">GitHub Discussions</a>.</p>
+<h3>How accurate is verse detection?</h3>
+<p>Very accurate for direct scripture references (90–100% confidence). Semantic detection of paraphrased scripture varies based on audio quality and how closely the speaker's words match the verse text. A clean audio feed from your mixer board makes a significant difference.</p>
+<h3>Can I use AnchorCast with ProPresenter or MediaShout?</h3>
+<p>Yes, via NDI. AnchorCast sends its output as an NDI source that you can pull into any NDI-compatible presentation software. You can also use HDMI output to a secondary monitor.</p>
+<h3>How do I contribute or report a bug?</h3>
+<p>Open an issue or pull request on <a href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank">GitHub</a>. We welcome contributions of all kinds — code, documentation, translations, and bug reports.</p>
+<div style="margin-top:52px;padding-top:28px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:14px;flex-wrap:wrap;position:relative;z-index:1">
+<a class="btn-gold" href="download.html">⬇ Download AnchorCast Free</a>
+<a class="btn-ghost" href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank">View on GitHub ↗</a>
+</div>
+</main>
+</div>
 <footer>
-  <div class="footer-top">
-    <div class="footer-brand">
-      <div class="footer-logo">
-        <div class="footer-logo-mark">✝</div>
+<div class="footer-top">
+<div class="footer-brand">
+<div class="footer-logo">
+<div class="footer-logo-mark">✝</div>
         AnchorCast
       </div>
-      <p class="footer-tagline">Free AI church presentation software — built for real Sunday services, every week, everywhere.</p>
-      <div class="footer-social">
-        <a href="https://github.com/anchorcastapp-team/anchorcastapp" target="_blank" title="GitHub" rel="noopener noreferrer">⚓</a>
-        <a href="https://www.anchorcastapp.com" title="Website">🌐</a>
-        <a href="mailto:info@kaitamtech.com" title="Email">✉</a>
-      </div>
-    </div>
-    <div class="footer-col">
-      <h4>Product</h4>
-      <ul>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="demo.html">Demo</a></li>
-        <li><a href="download.html">⬇ Download Free</a></li>
-        <li><a href="docs.html">Documentation</a></li>
-    <li><a href="contact.html">Contact</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener noreferrer">Wiki ↗</a></li>
-      </ul>
-    </div>
-    <div class="footer-col">
-      <h4>Project</h4>
-      <ul>
-        <li><a href="open-source.html">Open Source</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp" target="_blank" rel="noopener noreferrer">GitHub ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License ↗</a></li>
-      </ul>
-    </div>
-    <div class="footer-col">
-      <h4>Support</h4>
-      <ul>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" target="_blank" rel="noopener noreferrer">Report a Bug ↗</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/discussions" target="_blank" rel="noopener noreferrer">Discussions ↗</a></li>
-        <li><a href="mailto:info@kaitamtech.com">info@kaitamtech.com</a></li>
-        <li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer ↗</a></li>
-        <li><a href="privacy.html">Privacy Policy</a></li>
-        <li><a href="contact.html">Contact Us</a></li>
-      </ul>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <div class="footer-copy">
+<p class="footer-tagline">Free AI church presentation software — built for real Sunday services, every week, everywhere.</p>
+<div class="footer-social">
+<a href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank" title="GitHub">⚓</a>
+<a href="https://www.anchorcastapp.com" title="Website">🌐</a>
+<a href="mailto:info@kaitamtech.com" title="Email">✉</a>
+</div>
+</div>
+<div class="footer-col">
+<h4>Product</h4>
+<ul>
+<li><a href="features.html">Features</a></li>
+<li><a href="demo.html">Demo</a></li>
+<li><a href="download.html">⬇ Download Free</a></li>
+<li><a href="docs.html">Documentation</a></li>
+<li><a href="contact.html">Contact</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" rel="noopener noreferrer" target="_blank">Wiki ↗</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h4>Project</h4>
+<ul>
+<li><a href="open-source.html">Open Source</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp" rel="noopener noreferrer" target="_blank">GitHub ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CONTRIBUTING.md" rel="noopener noreferrer" target="_blank">Contribute ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/CHANGELOG.md" rel="noopener noreferrer" target="_blank">Changelog ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/LICENSE" rel="noopener noreferrer" target="_blank">MIT License ↗</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h4>Support</h4>
+<ul>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" rel="noopener noreferrer" target="_blank">Report a Bug ↗</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/discussions" rel="noopener noreferrer" target="_blank">Discussions ↗</a></li>
+<li><a href="mailto:info@kaitamtech.com">info@kaitamtech.com</a></li>
+<li><a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/DISCLAIMER.md" rel="noopener noreferrer" target="_blank">Disclaimer ↗</a></li>
+<li><a href="privacy.html">Privacy Policy</a></li>
+<li><a href="contact.html">Contact Us</a></li>
+</ul>
+</div>
+</div>
+<div class="footer-bottom">
+<div class="footer-copy">
       © 2026 AnchorCast · Developed by <strong style="color:#3a4060">Kaitam Technologies</strong> ·
       <a href="https://github.com/anchorcastapp-team/anchorcastapp">github.com/anchorcastapp-team</a>
       · Built with ♥ for churches everywhere
-    </div>
-    <div class="footer-badges">
-      <span class="footer-badge">✦ MIT License</span>
-      <span class="footer-badge">🔒 100% Free</span>
-      <span class="footer-badge">⚡ Open Source</span>
-      <span class="footer-badge">v1.5.0</span>
-    </div>
-  </div>
+    <br/><div class="github-status"><span aria-hidden="true" class="github-status-dot"></span><span data-github-status="">Connecting to GitHub…</span></div></div>
+<div class="footer-badges">
+<span class="footer-badge">✦ MIT License</span>
+<span class="footer-badge">🔒 100% Free</span>
+<span class="footer-badge">⚡ Open Source</span>
+<span aria-live="polite" class="footer-badge" data-github="version">Checking…</span>
+</div>
+</div>
 </footer>
 
-<script>
-(function(){
-  /* ── Scroll progress ── */
-  var bar = document.getElementById('scrollProg');
-  var navEl = document.getElementById('nav');
-  window.addEventListener('scroll', function(){
-    if(bar){
-      var pct = (window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100;
-      bar.style.width = pct + '%';
-    }
-    if(navEl) navEl.classList.toggle('scrolled', window.scrollY > 40);
-  }, {passive:true});
 
-  /* ── Mobile menu ── */
-  var mobBtn  = document.getElementById('mobMenuBtn') || document.getElementById('mobBtn');
-  var mobMenu = document.getElementById('mobMenu');
-
-  function openMenu(){
-    if(!mobMenu) return;
-    mobMenu.classList.add('open');
-    if(mobBtn) mobBtn.textContent = '✕';
-    /* Lock scroll without position:fixed to avoid iOS jump bug */
-    document.documentElement.style.overflow = 'hidden';
-  }
-  function closeMenu(){
-    if(!mobMenu) return;
-    mobMenu.classList.remove('open');
-    if(mobBtn) mobBtn.textContent = '☰';
-    /* Restore scroll */
-    document.documentElement.style.overflow = '';
-  }
-
-  if(mobBtn){
-    mobBtn.addEventListener('click', function(e){
-      e.stopPropagation();
-      mobMenu && mobMenu.classList.contains('open') ? closeMenu() : openMenu();
-    });
-  }
-
-  /* Close btn inside menu header */
-  var closeBtn = document.getElementById('mobMenuClose');
-  if(closeBtn) closeBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    closeMenu();
-  });
-
-  /* Nav links in mobile menu — just close overlay, let browser navigate normally */
-  if(mobMenu){
-    mobMenu.querySelectorAll('a').forEach(function(a){
-      a.addEventListener('click', function(){
-        /* Don't preventDefault — let navigation happen */
-        /* Just close the menu cleanly */
-        mobMenu.classList.remove('open');
-        if(mobBtn) mobBtn.textContent = '☰';
-        document.documentElement.style.overflow = '';
-      });
-    });
-  }
-
-  /* Close on outside click */
-  document.addEventListener('click', function(e){
-    if(mobMenu && mobMenu.classList.contains('open')){
-      if(mobBtn && !mobBtn.contains(e.target) && !mobMenu.contains(e.target)){
-        closeMenu();
-      }
-    }
-  });
-
-  /* ── Scroll reveal ── */
-  if('IntersectionObserver' in window){
-    var ro = new IntersectionObserver(function(entries){
-      entries.forEach(function(e){
-        if(e.isIntersecting){ e.target.classList.add('in'); ro.unobserve(e.target); }
-      });
-    }, {threshold:0.05, rootMargin:'0px 0px -20px 0px'});
-    document.querySelectorAll('.reveal').forEach(function(el){ ro.observe(el); });
-  } else {
-    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
-  }
-
-  /* ── GitHub stats ── */
-  function loadStats(){
-    var REPO  = 'anchorcastapp-team/anchorcastapp';
-    var BASE  = 'https://api.github.com/repos/' + REPO;
-
-    /* Known baselines — update these when GitHub reports higher numbers */
-    var KNOWN_DOWNLOADS = 69;
-    var KNOWN_STARS     = 4;
-
-    function setText(ids, val){
-      ids.forEach(function(id){
-        var el = document.getElementById(id); if(el) el.textContent = val;
-      });
-    }
-    function animateCounter(ids, n){
-      n = parseInt(n, 10) || 0;
-      var dur = 900, t0 = performance.now();
-      (function tick(now){
-        var p = Math.min((now-t0)/dur,1), ease=1-Math.pow(1-p,3);
-        setText(ids, Math.round(ease*n).toLocaleString());
-        if(p<1) requestAnimationFrame(tick);
-      })(performance.now());
-    }
-    function parseShields(raw){
-      raw = String(raw||'').replace(/,/g,'').trim();
-      if(!raw||raw==='N/A') return 0;
-      if(/k$/i.test(raw)) return Math.round(parseFloat(raw)*1000);
-      return parseInt(raw,10)||0;
-    }
-
-    /* Show known baselines immediately */
-    animateCounter(['dlCount','statDl'], KNOWN_DOWNLOADS);
-    animateCounter(['starCount','ghStars','starCountHero'], KNOWN_STARS);
-    setText(['releaseVer','relTag'], 'v1.3.0');
-
-    /* ── Downloads: GitHub API → Shields.io fallback ── */
-    fetch(BASE + '/releases?per_page=100')
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(releases){
-        var total = 0;
-        if(Array.isArray(releases)){
-          releases.forEach(function(r){
-            (r.assets||[]).forEach(function(a){ total += (a.download_count||0); });
-          });
-        }
-        console.log('[AnchorCast] GitHub API downloads:', total);
-        animateCounter(['dlCount','statDl'], Math.max(total, KNOWN_DOWNLOADS));
-      })
-      .catch(function(){
-        console.warn('[AnchorCast] GitHub API rate limited — using Shields.io for downloads');
-        fetch('https://img.shields.io/github/downloads/'+REPO+'/total.json')
-          .then(function(r){ return r.json(); })
-          .then(function(d){
-            var n = parseShields(d && d.value);
-            console.log('[AnchorCast] Shields.io downloads:', n);
-            animateCounter(['dlCount','statDl'], Math.max(n, KNOWN_DOWNLOADS));
-          }).catch(function(){
-            /* Both failed — keep baseline */
-          });
-      });
-
-    /* ── Stars: GitHub API → Shields.io fallback ── */
-    fetch(BASE)
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(d){
-        var stars = (d && d.stargazers_count) || 0;
-        console.log('[AnchorCast] GitHub API stars:', stars);
-        animateCounter(['starCount','ghStars','starCountHero'], Math.max(stars, KNOWN_STARS));
-      })
-      .catch(function(){
-        console.warn('[AnchorCast] GitHub API rate limited — using Shields.io for stars');
-        fetch('https://img.shields.io/github/stars/'+REPO+'.json')
-          .then(function(r){ return r.json(); })
-          .then(function(d){
-            var n = parseShields(d && d.value);
-            console.log('[AnchorCast] Shields.io stars:', n);
-            animateCounter(['starCount','ghStars','starCountHero'], Math.max(n, KNOWN_STARS));
-          }).catch(function(){
-            /* Both failed — keep baseline */
-          });
-      });
-
-    /* ── Version: GitHub API → Shields.io fallback ── */
-    fetch(BASE + '/releases/latest')
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : 'v1.3.0');
-      })
-      .catch(function(){
-        fetch('https://img.shields.io/github/release/'+REPO+'.json')
-          .then(function(r){ return r.json(); })
-          .then(function(d){
-            setText(['releaseVer','relTag'],
-              (d&&d.value&&d.value!=='none') ? d.value : 'v1.3.0');
-          }).catch(function(){
-            setText(['releaseVer','relTag'], 'v1.3.0');
-          });
-      });
-  }
-  loadStats();
-
-  /* ── Docs sidebar ── */
-  (function(){
-    var toggle  = document.getElementById('sidebarToggle');
-    var sidebar = document.getElementById('docsSidebar');
-    if(!sidebar) return;
-    function upd(){ if(toggle) toggle.style.display = innerWidth<=800?'flex':'none'; if(innerWidth>800) sidebar.classList.remove('expanded'); }
-    upd(); window.addEventListener('resize', upd);
-    sidebar.querySelectorAll('.sidebar-link').forEach(function(l){
-      l.addEventListener('click', function(){ if(innerWidth<=800) sidebar.classList.remove('expanded'); });
-    });
-    var links = Array.from(document.querySelectorAll('.sidebar-link[href^="#"]'));
-    var heads = Array.from(document.querySelectorAll('.docs-content h1,.docs-content h2'));
-    if(links.length&&heads.length){
-      function spy(){
-        var cur=heads[0]?heads[0].id:'';
-        heads.forEach(function(h){ if(h.id&&scrollY>=h.offsetTop-100) cur=h.id; });
-        links.forEach(function(l){ l.classList.toggle('active',l.getAttribute('href')==='#'+cur); });
-      }
-      window.addEventListener('scroll',spy,{passive:true}); spy();
-    }
-  })();
-})();
-</script>
-<script>
-(function(){
-  /* ── Scroll progress ── */
-  var bar = document.getElementById('scrollProg');
-  var navEl = document.getElementById('nav');
-  window.addEventListener('scroll', function(){
-    if(bar){
-      var pct = (window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100;
-      bar.style.width = pct + '%';
-    }
-    if(navEl) navEl.classList.toggle('scrolled', window.scrollY > 40);
-  }, {passive:true});
-
-  /* ── Mobile menu ── */
-  var mobBtn  = document.getElementById('mobMenuBtn') || document.getElementById('mobBtn');
-  var mobMenu = document.getElementById('mobMenu');
-
-  function openMenu(){
-    if(!mobMenu) return;
-    mobMenu.classList.add('open');
-    if(mobBtn) mobBtn.textContent = '✕';
-    /* Lock scroll without position:fixed to avoid iOS jump bug */
-    document.documentElement.style.overflow = 'hidden';
-  }
-  function closeMenu(){
-    if(!mobMenu) return;
-    mobMenu.classList.remove('open');
-    if(mobBtn) mobBtn.textContent = '☰';
-    /* Restore scroll */
-    document.documentElement.style.overflow = '';
-  }
-
-  if(mobBtn){
-    mobBtn.addEventListener('click', function(e){
-      e.stopPropagation();
-      mobMenu && mobMenu.classList.contains('open') ? closeMenu() : openMenu();
-    });
-  }
-
-  /* Close btn inside menu header */
-  var closeBtn = document.getElementById('mobMenuClose');
-  if(closeBtn) closeBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    closeMenu();
-  });
-
-  /* Nav links in mobile menu — just close overlay, let browser navigate normally */
-  if(mobMenu){
-    mobMenu.querySelectorAll('a').forEach(function(a){
-      a.addEventListener('click', function(){
-        /* Don't preventDefault — let navigation happen */
-        /* Just close the menu cleanly */
-        mobMenu.classList.remove('open');
-        if(mobBtn) mobBtn.textContent = '☰';
-        document.documentElement.style.overflow = '';
-      });
-    });
-  }
-
-  /* Close on outside click */
-  document.addEventListener('click', function(e){
-    if(mobMenu && mobMenu.classList.contains('open')){
-      if(mobBtn && !mobBtn.contains(e.target) && !mobMenu.contains(e.target)){
-        closeMenu();
-      }
-    }
-  });
-
-  /* ── Scroll reveal ── */
-  if('IntersectionObserver' in window){
-    var ro = new IntersectionObserver(function(entries){
-      entries.forEach(function(e){
-        if(e.isIntersecting){ e.target.classList.add('in'); ro.unobserve(e.target); }
-      });
-    }, {threshold:0.05, rootMargin:'0px 0px -20px 0px'});
-    document.querySelectorAll('.reveal').forEach(function(el){ ro.observe(el); });
-  } else {
-    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
-  }
-
-  /* ── GitHub stats ── */
-  function loadStats(){
-    var REPO = 'anchorcastapp-team/anchorcastapp';
-    var BASE = 'https://api.github.com/repos/' + REPO;
-
-    var FALLBACK_STARS = 3;
-    var MIN_DOWNLOADS = 12;
-    var FALLBACK_VERSION = 'v1.3.0';
-
-    function setText(ids, value){
-      ids.forEach(function(id){
-        var el = document.getElementById(id);
-        if(el) el.textContent = value;
-      });
-    }
-    function setDownloads(value){
-      var safeValue = Math.max(MIN_DOWNLOADS, Number(value || 0));
-      setText(['dlCount','statDl'], safeValue.toLocaleString());
-    }
-    function animateDownloads(value){
-      var finalValue = Math.max(MIN_DOWNLOADS, Number(value || 0));
-      var dur = 900, start = performance.now();
-      (function tick(now){
-        var p = Math.min((now - start) / dur, 1);
-        var ease = 1 - Math.pow(1 - p, 3);
-        var val = Math.round(MIN_DOWNLOADS + ease * (finalValue - MIN_DOWNLOADS));
-        setText(['dlCount','statDl'], val.toLocaleString());
-        if(p < 1) requestAnimationFrame(tick);
-      })(performance.now());
-    }
-
-    setText(['starCount','ghStars','starCountHero'], FALLBACK_STARS.toLocaleString());
-    setDownloads(MIN_DOWNLOADS);
-    setText(['releaseVer','relTag'], FALLBACK_VERSION);
-
-    fetch(BASE + '?t=' + Date.now(), {cache:'no-store'})
-      .then(function(r){ if(!r.ok) throw new Error('repo stats failed'); return r.json(); })
-      .then(function(d){
-        var stars = Math.max(FALLBACK_STARS, Number(d && d.stargazers_count || 0));
-        setText(['starCount','ghStars','starCountHero'], stars.toLocaleString());
-      })
-      .catch(function(err){
-        console.warn('[AnchorCast] GitHub stars fallback used:', err);
-        setText(['starCount','ghStars','starCountHero'], FALLBACK_STARS.toLocaleString());
-      });
-
-    fetch(BASE + '/releases/latest?t=' + Date.now(), {cache:'no-store'})
-      .then(function(r){ if(!r.ok) throw new Error('latest release failed'); return r.json(); })
-      .then(function(d){
-        setText(['releaseVer','relTag'], (d && d.tag_name) ? d.tag_name : FALLBACK_VERSION);
-      })
-      .catch(function(err){
-        console.warn('[AnchorCast] GitHub latest fallback used:', err);
-        setText(['releaseVer','relTag'], FALLBACK_VERSION);
-      });
-
-    fetch(BASE + '/releases?per_page=100&t=' + Date.now(), {cache:'no-store'})
-      .then(function(r){ if(!r.ok) throw new Error('releases stats failed'); return r.json(); })
-      .then(function(releases){
-        var total = 0;
-        var assets = 0;
-        if(Array.isArray(releases)){
-          releases.forEach(function(release){
-            if(release && Array.isArray(release.assets)){
-              release.assets.forEach(function(asset){
-                assets += 1;
-                total += Number(asset && asset.download_count || 0);
-              });
-            }
-          });
-        }
-        console.log('[AnchorCast] GitHub downloads from', REPO, '| releases:', Array.isArray(releases) ? releases.length : 0, '| assets:', assets, '| total:', total);
-        animateDownloads(total);
-      })
-      .catch(function(err){
-        console.warn('[AnchorCast] GitHub downloads fallback used:', err);
-        setDownloads(MIN_DOWNLOADS);
-      });
-  }
-  loadStats();
-
-  /* ── Docs sidebar ── */
-  (function(){
-    var toggle  = document.getElementById('sidebarToggle');
-    var sidebar = document.getElementById('docsSidebar');
-    if(!sidebar) return;
-    function upd(){ if(toggle) toggle.style.display = innerWidth<=800?'flex':'none'; if(innerWidth>800) sidebar.classList.remove('expanded'); }
-    upd(); window.addEventListener('resize', upd);
-    sidebar.querySelectorAll('.sidebar-link').forEach(function(l){
-      l.addEventListener('click', function(){ if(innerWidth<=800) sidebar.classList.remove('expanded'); });
-    });
-    var links = Array.from(document.querySelectorAll('.sidebar-link[href^="#"]'));
-    var heads = Array.from(document.querySelectorAll('.docs-content h1,.docs-content h2'));
-    if(links.length&&heads.length){
-      function spy(){
-        var cur=heads[0]?heads[0].id:'';
-        heads.forEach(function(h){ if(h.id&&scrollY>=h.offsetTop-100) cur=h.id; });
-        links.forEach(function(l){ l.classList.toggle('active',l.getAttribute('href')==='#'+cur); });
-      }
-      window.addEventListener('scroll',spy,{passive:true}); spy();
-    }
-  })();
-})();
-</script>
-</body>
+<script data-anchorcast-shared="true" defer="" src="../assets/js/site.js"></script><script data-anchorcast-shared="true" defer="" src="../assets/js/github-data.js"></script></body>
 </html>
