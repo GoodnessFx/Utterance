@@ -5,7 +5,7 @@
 
 const REPOSITORY = 'anchorcastapp-team/anchorcastapp';
 const GITHUB_API = `https://api.github.com/repos/${REPOSITORY}`;
-const CACHE_HEADER = 'public, max-age=0, s-maxage=600, stale-while-revalidate=3600, stale-if-error=86400';
+const CACHE_HEADER = 'public, max-age=0, s-maxage=600, stale-while-revalidate=60, stale-if-error=86400';
 
 function githubHeaders() {
   const headers = {
@@ -91,18 +91,28 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Two upstream calls per CDN cache fill. At a ten-minute cache interval this
-    // stays comfortably below GitHub's public unauthenticated limit, while an
-    // optional token raises the limit further.
-    const [repository, releasesRaw] = await Promise.all([
+    // Three upstream calls per CDN cache fill. The dedicated /releases/latest
+    // endpoint is the source of truth for the release GitHub marks as Latest.
+    // The full releases list is used only for aggregate download totals.
+    const [repository, releasesRaw, latestRaw] = await Promise.all([
       githubJson(''),
       githubJson('/releases?per_page=100'),
+      githubJson('/releases/latest').catch((error) => {
+        // A repository with no full release returns 404. Keep a conservative
+        // fallback to the release list so the endpoint remains usable.
+        if (error && error.status === 404) return null;
+        throw error;
+      }),
     ]);
 
     const releases = Array.isArray(releasesRaw)
       ? releasesRaw.filter((release) => !release.draft)
       : [];
-    const latest = releases.find((release) => !release.prerelease) || releases[0] || null;
+    const latestFromGitHub = latestRaw && !latestRaw.draft ? latestRaw : null;
+    const latest = latestFromGitHub
+      || releases.find((release) => !release.prerelease)
+      || releases[0]
+      || null;
 
     if (!latest) {
       return res.status(404).json({ ok: false, error: 'No published GitHub release was found.' });
@@ -121,6 +131,9 @@ module.exports = async function handler(req, res) {
       ok: true,
       fetchedAt: new Date().toISOString(),
       source: 'github-rest-api',
+      latestSelection: latestFromGitHub
+        ? 'github-releases-latest-endpoint'
+        : 'release-list-fallback',
       repo: {
         name: repository.full_name || REPOSITORY,
         url: repository.html_url || `https://github.com/${REPOSITORY}`,
