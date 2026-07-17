@@ -1,4 +1,4 @@
-// AnchorCast PCM Capture Processor
+// Utterance PCM Capture Processor
 // Runs in the AudioWorklet thread — captures raw Float32 audio and posts to main thread
 // This file must be served as a separate JS file (not inline)
 

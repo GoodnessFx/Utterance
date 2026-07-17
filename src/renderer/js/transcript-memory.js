@@ -1,5 +1,5 @@
 /**
- * AnchorCast — Self-Improving Transcript Memory
+ * Utterance — Self-Improving Transcript Memory
  * Post-Whisper adaptive correction layer.
  *
  * Architecture:

@@ -1,9 +1,10 @@
 {
-  "name": "anchorcast",
-  "version": "1.5.0",
-  "description": "AI-powered worship presentation, sermon transcript and Bible casting app for churches",
+  "name": "utterance",
+  "productName": "Utterance",
+  "version": "2.0.0",
+  "description": "Live verse detection for sermons — AI-powered worship presentation and Bible casting app for churches",
   "main": "src/main.js",
-  "author": "AnchorCast",
+  "author": "Utterance",
   "license": "MIT",
   "scripts": {
     "web": "node server.js",
@@ -56,5 +57,62 @@
     "electron": "^33.0.0",
     "electron-builder": "^24.13.3",
     "@electron/notarize": "^2.5.0"
+  },
+  "build": {
+    "appId": "com.utterance.app",
+    "productName": "Utterance",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "data/**/*",
+      "assets/**/*",
+      "ndi-addon/**/*",
+      "whisper_server.py",
+      "server.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "data/kjv.json",
+        "to": "data/kjv.json"
+      },
+      {
+        "from": "data/crossrefs.json",
+        "to": "data/crossrefs.json"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.education"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Utterance",
+      "include": "installer.nsh"
+    }
   }
 }

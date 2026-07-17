@@ -2,7 +2,7 @@
   'use strict';
 
   if (window.electronAPI && !window.electronAPI.isWeb) {
-    console.log('[AnchorCast] Real Electron API detected — shim skipped');
+    console.log('[Utterance] Real Electron API detected — shim skipped');
     return;
   }
 
@@ -116,11 +116,11 @@
     }
     _projectionWindow = window.open(
       '/projection.html',
-      'anchorcast-projection',
+      'utterance-projection',
       'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes'
     );
     if (!_projectionWindow) {
-      console.warn('[AnchorCast] Projection popup blocked — allow popups for this site');
+      console.warn('[Utterance] Projection popup blocked — allow popups for this site');
       return Promise.resolve();
     }
     _startClosePolling();
@@ -373,5 +373,5 @@
     },
   };
 
-  console.log('[AnchorCast] Web mode: electronAPI shim installed');
+  console.log('[Utterance] Web mode: electronAPI shim installed');
 })();

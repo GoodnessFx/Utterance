@@ -8,12 +8,12 @@
              script-src 'self' 'unsafe-inline';
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
              connect-src 'self';">
-  <title>AnchorCast Bible Manager</title>
+  <title>Utterance Bible Manager</title>
   <script src="js/electron-shim.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/anchorcast-theme.css">
+  <link rel="stylesheet" href="css/utterance-theme.css">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%;overflow:hidden;display:flex;flex-direction:column;
@@ -218,7 +218,7 @@
       <div class="preview-thumb" id="sidebarPreview">
         <div style="font-size:9px;color:var(--dim);text-align:center;padding:8px">Live preview</div>
       </div>
-      <div class="preview-label" id="versionInfo">AnchorCast v1.2.0</div>
+      <div class="preview-label" id="versionInfo">Utterance v1.2.0</div>
     </div>
   </div>
 
@@ -500,7 +500,7 @@
         <div class="toggle-row">
           <div class="toggle-info">
             <div class="toggle-name" id="remoteStatusLabel">Loading…</div>
-            <div class="toggle-sub" id="remoteUrlLabel">Allow phones/tablets on same WiFi to control AnchorCast</div>
+            <div class="toggle-sub" id="remoteUrlLabel">Allow phones/tablets on same WiFi to control Utterance</div>
           </div>
           <div class="toggle" id="settRemoteToggle" onclick="toggleRemoteServer()">
             <div class="toggle-knob" id="settRemoteKnob"></div>
@@ -576,7 +576,7 @@
         <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
           <div class="uz-icon">📂</div>
           <div class="uz-title">Click or drag a Bible translation file here</div>
-          <div class="uz-sub">Supported: .json (AnchorCast format) · KJV included built-in</div>
+          <div class="uz-sub">Supported: .json (Utterance format) · KJV included built-in</div>
         </div>
         <input type="file" id="fileInput" accept=".json" onchange="processFile(this.files[0])">
         <div id="uploadStatus"></div>
@@ -605,7 +605,7 @@
 
 <!-- Bottom bar -->
 <div class="bottom-bar">
-  <div class="version" id="versionInfo">AnchorCast v1.2.0</div>
+  <div class="version" id="versionInfo">Utterance v1.2.0</div>
   <div class="bottom-sp"></div>
   <button class="btn-cancel" onclick="closeManager()">Cancel</button>
   <button class="btn-save" onclick="closeManager()">Done</button>
@@ -1116,7 +1116,7 @@ async function init() {
 
   const info = await window.electronAPI.getAppInfo();
   const vEls = document.querySelectorAll('#versionInfo');
-  vEls.forEach(el => { el.textContent = `AnchorCast v${info.version} · ${info.platform}`; });
+  vEls.forEach(el => { el.textContent = `Utterance v${info.version} · ${info.platform}`; });
 
   loadRemoteStatus();
   setInterval(loadRemoteStatus, 2500);

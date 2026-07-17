@@ -1,0 +1,24 @@
+{
+  "appId": "com.utterance.app",
+  "productName": "Utterance",
+  "directories": { "output": "dist" },
+  "files": ["src/**/*", "data/**/*", "assets/**/*", "ndi-addon/**/*", "whisper_server.py", "server.js", "package.json"],
+  "extraResources": [
+    { "from": "data/kjv.json", "to": "data/kjv.json" },
+    { "from": "data/crossrefs.json", "to": "data/crossrefs.json" }
+  ],
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "assets/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "assets/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Utterance",
+    "include": "installer.nsh"
+  }
+}

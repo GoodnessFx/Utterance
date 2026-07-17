@@ -1,4 +1,4 @@
-// AnchorCast — Bible Database Engine
+// Utterance — Bible Database Engine
 // Loads complete KJV (and other translations) from JSON files in /data/
 // Falls back to built-in 223 key verses if JSON not yet installed.
 // JSON format: [{"b":1,"c":1,"v":1,"t":"verse text"}, ...]  (b=book 1-66)
@@ -575,11 +575,40 @@ if (window.electronAPI && window.electronAPI.loadBibleData) {
   });
 }
 
+// ─── CROSS-REFERENCE DATA ─────────────────────────────────────────────────────
+// Loaded from data/crossrefs.json at startup. Maps verse → related verses.
+let _crossrefs = {};  // key: "book chapter:verse" → string[]
+
+async function loadCrossrefs() {
+  try {
+    if (window.electronAPI?.loadCrossrefs) {
+      _crossrefs = await window.electronAPI.loadCrossrefs() || {};
+    }
+  } catch (_) { _crossrefs = {}; }
+}
+
+function getCrossrefs(book, chapter, verse) {
+  const key = `${book} ${chapter}:${verse}`;
+  const refs = _crossrefs[key] || _crossrefs[`${book} ${chapter}:${verse}`] || [];
+  return refs.map(ref => {
+    const parsed = parseReference(ref);
+    if (!parsed) return null;
+    const text = getVerse(parsed.book, parsed.chapter, parsed.verse);
+    return text ? { ref, book: parsed.book, chapter: parsed.chapter, verse: parsed.verse, text } : null;
+  }).filter(Boolean);
+}
+
+// ─── PUBLIC DOMAIN TRANSLATIONS (ASV, WEB, YLT) ─────────────────────────────
+// Available as optional downloads — kept separate from bundled KJV/NKJV
+const PUBLIC_DOMAIN_TRANSLATIONS = ['ASV', 'WEB', 'YLT'];
+
 window.BibleDB = {
   CANON, ALL_BOOKS, TRANSLATIONS,
   getVerse, getChapter, getAvailableChapters,
   parseReference, detectReferences, searchVerses,
   getAllRefs, bookNameToIndex, indexToBookName, loadFromJSON, getDbStatus,
+  loadCrossrefs, getCrossrefs,
+  PUBLIC_DOMAIN_TRANSLATIONS,
   getChapters: getAvailableChapters,
   normalizeBook: (n) => indexToBookName(bookNameToIndex(n)),
 };

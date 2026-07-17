@@ -1,4 +1,4 @@
-// AnchorCast AI Detection Engine
+// Utterance AI Detection Engine
 // Detects Bible verses from live sermon transcript
 // Works offline (rule-based + keyword + content search) and online (Claude AI)
 
@@ -789,8 +789,22 @@ Return [] if nothing detected. No markdown, no extra text.`;
     return out;
   }
 
+  // ── 6. SEMANTIC DETECTION (via SemanticDetection module) ────────────────
+  // Uses ONNX embeddings to match paraphrased/spoken text against verse index.
+  // This runs as a fallback when the other 5 methods fail to find a match.
+  async function detectSemantic(text, translation = 'KJV') {
+    if (!window.SemanticDetection?.isReady?.()) return [];
+    try {
+      return await window.SemanticDetection.detect(text, translation);
+    } catch (e) {
+      console.warn('[AIDetection] Semantic detection error:', e.message);
+      return [];
+    }
+  }
+
   return {
     init, setEnabled, processText, clearCache, generateSermonNotes,
     detectDirect, detectKeyword, detectVerbal, detectLearnedPhrases, reloadLearnedPhrases,
+    detectSemantic,
   };
 })();

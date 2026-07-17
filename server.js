@@ -10,7 +10,7 @@ const PORT = 5000;
 
 const emitter = new EventEmitter();
 
-const DATA_DIR = path.join(os.homedir(), '.anchorcast');
+const DATA_DIR = path.join(os.homedir(), '.utterance');
 const PRESETS_ASSETS = path.join(DATA_DIR, 'PresetAssets');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(PRESETS_ASSETS)) fs.mkdirSync(PRESETS_ASSETS, { recursive: true });
@@ -629,7 +629,7 @@ function buildRemoteHTML() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AnchorCast Remote</title>
+<title>Utterance Remote</title>
 <style>
 :root{
   --gold:#C9A84C;--gold-dim:rgba(201,168,76,.18);--gold-glow:rgba(201,168,76,.07);
@@ -768,7 +768,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="hdr">
   <div class="hdr-brand">
     <div class="hdr-cross">\u271D</div>
-    <div><div class="hdr-title">AnchorCast</div><div class="hdr-sub">Remote</div></div>
+    <div><div class="hdr-title">Utterance</div><div class="hdr-sub">Remote</div></div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <div class="onair" id="onairBadge"><div class="onair-dot"></div>ON AIR</div>
@@ -1120,5 +1120,5 @@ app.get('/{*path}', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`AnchorCast web server running on http://0.0.0.0:${PORT}`);
+  console.log(`Utterance web server running on http://0.0.0.0:${PORT}`);
 });

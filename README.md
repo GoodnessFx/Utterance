@@ -1,26 +1,23 @@
-# ⚓ AnchorCast v1.5.0
-### *Free & Open-Source AI Church Presentation Software*
+# ✝ Utterance v2.0.0
+### *Live Verse Detection for Sermons — Free & Open-Source*
 
 <p align="center">
-  <a href="https://github.com/anchorcastapp-team/anchorcastapp/stargazers">
-    <img src="https://img.shields.io/github/stars/anchorcastapp-team/anchorcastapp?style=for-the-badge" />
+  <a href="https://github.com/GoodnessFx/Utterance/stargazers">
+    <img src="https://img.shields.io/github/stars/GoodnessFx/Utterance?style=for-the-badge" />
   </a>
-  <a href="https://github.com/anchorcastapp-team/anchorcastapp/releases">
-    <img src="https://img.shields.io/github/v/release/anchorcastapp-team/anchorcastapp?style=for-the-badge&label=version" />
+  <a href="https://github.com/GoodnessFx/Utterance/releases">
+    <img src="https://img.shields.io/github/v/release/GoodnessFx/Utterance?style=for-the-badge&label=version" />
   </a>
-  <a href="https://github.com/anchorcastapp-team/anchorcastapp/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/anchorcastapp-team/anchorcastapp?style=for-the-badge" />
+  <a href="https://github.com/GoodnessFx/Utterance/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/GoodnessFx/Utterance?style=for-the-badge" />
   </a>
-  <a href="https://github.com/anchorcastapp-team/anchorcastapp/issues">
-    <img src="https://img.shields.io/github/issues/anchorcastapp-team/anchorcastapp?style=for-the-badge" />
-  </a>
-  <a href="https://www.anchorcastapp.com">
-    <img src="https://img.shields.io/badge/website-anchorcastapp.com-blue?style=for-the-badge" />
+  <a href="https://github.com/GoodnessFx/Utterance/issues">
+    <img src="https://img.shields.io/github/issues/GoodnessFx/Utterance?style=for-the-badge" />
   </a>
 </p>
 
 <p align="center">
-  <strong>AnchorCast listens to your preacher, detects Bible verses in real time, and displays them on your projection screen — automatically.</strong><br/>
+  <strong>Utterance listens to your preacher, detects Bible verses in real time, and displays them on your projection screen — automatically.</strong><br/>
   Songs · Scripture · Media · Timer · Transcription · NDI — all in one free app.
 </p>
 
@@ -47,8 +44,8 @@
 ## ⚡ Quick Start
 
 ```bash
-git clone https://github.com/anchorcastapp-team/anchorcastapp.git
-cd anchorcastapp
+git clone https://github.com/GoodnessFx/Utterance.git
+cd Utterance
 npm install
 npm start
 ```
@@ -59,8 +56,7 @@ On Windows, double-click `start.bat`.
 
 ## 📥 Download
 
-👉 **[anchorcastapp.com](https://www.anchorcastapp.com)** — Windows & macOS installers (Python + Whisper bundled, fully offline)  
-👉 **[GitHub Releases](https://github.com/anchorcastapp-team/anchorcastapp/releases)** — all versions and build variants
+**[GitHub Releases](https://github.com/GoodnessFx/Utterance/releases)** — all versions and build variants
 
 | Platform | Variant | Size | Description |
 |----------|---------|------|-------------|
@@ -77,10 +73,16 @@ On Windows, double-click `start.bat`.
 
 ### 🎙 AI Transcription & Scripture
 - **Real-time sermon transcription** — local Whisper AI (offline) or Deepgram cloud (online)
-- **Automatic Bible verse detection** — detects direct quotes and paraphrased references as the preacher speaks
-- **AI context search** — find verses by topic, not just reference
+- **Automatic Bible verse detection** — detects direct quotes, paraphrased references, and spoken-number references
+- **Semantic verse matching** — ONNX-based embeddings detect paraphrased scripture even without a direct quote (new in v2.0)
+- **Cross-reference awareness** — knows which verses are commonly co-quoted, improving context detection (new in v2.0)
 - **Adaptive Memory** — learns speaker vocabulary, accents, and correction patterns over time
 - **Detection Review** — approve, reject, or teach custom trigger phrases for future services
+
+### 🌍 Multi-Language Support (new in v2.0)
+- **21 interface languages** — English, Spanish, French, German, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi, Russian, Italian, Dutch, Polish, Swedish, Ukrainian, Turkish, Thai, Vietnamese, Hebrew
+- **Whisper language selection** — configure transcription language independently from UI language
+- **Public domain Bible translations** — one-click download for ASV, WEB, and YLT (no internet required after download)
 
 ### 🎵 Worship Tools
 - **Song Manager** — full library with lyrics editor, auto slide formatting, and Genius lyrics search
@@ -91,10 +93,11 @@ On Windows, double-click `start.bat`.
 
 ### 📺 Projection System
 - **Live preview + projection** — operator sees the next slide while the congregation sees the current one
-- **Multi-monitor support** — drag the projection window to any connected screen or projector
+- **Multi-monitor support** — auto-detect external displays, select target monitor in settings (new in v2.0)
 - **NDI output** — send to OBS, vMix, or Wirecast for live streaming
 - **MJPEG fallback** — for any browser-based streaming client
 - **Logo, alerts, and live captions** — overlay layers managed independently of the main display
+- **Simplified Operator Mode** — streamlined dashboard for non-technical operators with only essential controls (new in v2.0)
 
 ### 📱 Remote Control
 - Access at `http://[your-ip]:8080/remote` from any phone or tablet on Wi-Fi
@@ -107,21 +110,27 @@ On Windows, double-click `start.bat`.
 - **Displayed on the projection screen** — fully synced, no lag
 - **Flashes red** when time expires and shows a closing message to the speaker
 - **Clock & date overlay** for pre-service display
-- **Standalone AnchorCast Timer** — installs alongside the main app as a separate shortcut
+- **Standalone Utterance Timer** — installs alongside the main app as a separate shortcut
 
 ### 📝 Sermon Intelligence
 - **Live transcript** — auto-saved after every session
-- **AI Sermon Notes** — generate structured notes (title, topic, summary, all main points, key verses, applications) from the transcript with one click
+- **AI Sermon Notes** — generate structured notes from the transcript with one click
 - **Sermon Intelligence** — AI title suggestions, keyword analysis, and structure insights
 - **Service Archive** — searchable history of every service by title, speaker, or verse
 - **Analytics Dashboard** — cross-service stats: most-used books, quoted verses, speaker patterns
 
+### 💾 Settings Export/Import (new in v2.0)
+- **Export settings** — backup translation, language, theme, and learned phrases to a JSON file
+- **Import settings** — restore settings on a new machine (PINs excluded for security)
+- **Cross-machine setup** — share church configurations between multiple installations
+
 ### 🔒 Security & Reliability
 - **Offline-first** — works entirely without internet using local AI and local Bible data
-- **KJV bundled** by default; import any translation (NKJV, NIV, ESV, NLT, NASB, ASV) via JSON
-- **Hardened security** — settings API auth, PBKDF2 PIN hashing, media protocol path restriction, CSP headers (v1.4.0)
-- **Role-based remote access** — PIN-protected operator controls, session tokens cleared on disconnect
-- **NDI + MJPEG** — professional and fallback streaming options built in
+- **KJV bundled** by default; ASV, WEB, YLT downloadable; import any translation via JSON
+- **Hardened security** — PBKDF2 PIN hashing (100k iterations), session tokens, role-based access, rate limiting, CSP headers
+- **Crash safety** — local crash logging with automatic log cleanup (new in v2.0)
+- **Auto-update** — checks for new versions from GitHub releases (new in v2.0)
+- **Setup wizard** — guided first-run experience for language, display, and PIN configuration (new in v2.0)
 
 ---
 
@@ -141,7 +150,8 @@ On Windows, double-click `start.bat`.
 | Countdown timer | ✅ | ❌ |
 | PPTX import | ✅ | ❌ |
 | Multi-display management | ✅ | ❌ |
-| Full app backup / restore | ✅ | ❌ |
+| Settings export/import | ✅ | ✅ |
+| Auto-update | ✅ | ❌ |
 
 ---
 
@@ -170,7 +180,7 @@ npm run build:win:light    # Light installer — Python bundled, model downloads
 
 ### macOS
 ```bash
-# Apple Silicon (M1/M2/M3)
+# Apple Silicon (M1/M2/M3/M4)
 npm run build:mac:full:arm
 npm run build:mac:light:arm
 
@@ -192,7 +202,7 @@ npm run build:timer
 
 > **Windows:** Run `setup_whisper.bat` before building to create the `python\` folder. Place `vc_redist.x64.exe` in the project root for a fully offline installer. Models in a `models\` folder are bundled automatically.
 
-> **macOS:** Set `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` environment variables to notarize. Swap the `python/` folder to the correct architecture before each build (`aarch64-apple-darwin` for ARM64, `x86_64-apple-darwin` for Intel).
+> **macOS:** Set `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` environment variables to notarize. Swap the `python/` folder to the correct architecture before each build.
 
 ---
 
@@ -201,28 +211,35 @@ npm run build:timer
 ```
 src/
 ├── main.js                    # Electron main process — IPC, projection, timer, NDI
-├── timer-main.js              # Standalone AnchorCast Timer entry point
+├── timer-main.js              # Standalone Utterance Timer entry point
 ├── preload.js                 # Electron IPC bridge (contextBridge)
+├── crash-reporter.js          # Local crash logging with uncaughtException handlers
+├── auto-updater.js            # GitHub releases auto-update with download UI
+├── multi-monitor.js           # Display detection, selection, projection targeting
+├── language-support.js        # 21-language UI translation manager
+├── settings-export.js         # Export/import settings (strips PINs for security)
+├── bible-downloader.js        # Downloads public domain translations (ASV/WEB/YLT)
 └── renderer/
     ├── index.html             # Main operator dashboard
     ├── projection.html        # Projection output window
+    ├── settings.html          # Settings UI with Language/Display/Backup sections
+    ├── setup-wizard.html      # First-run setup wizard
     ├── countdown-window.html  # Timer control window
     └── js/
         ├── app.js             # Main app logic and operator workflow
-        ├── ai-detection.js    # Bible verse detection engine + Sermon Notes AI
-        ├── bible.js           # Bible database + n-gram indexes
-        └── electron-shim.js   # Web-mode compatibility layer
+        ├── ai-detection.js    # Bible verse detection engine (6 methods including semantic)
+        ├── bible.js           # Bible database + n-gram indexes + cross-refs
+        ├── semantic-detection.js  # ONNX embedding-based verse matching
+        ├── simple-dashboard.js    # Simplified operator mode
+        ├── transcript-memory.js   # Self-improving transcript memory
+        └── electron-shim.js       # Web-mode compatibility layer
 
 server.js              # Express web server (web mode)
 whisper_server.py      # Local Whisper AI transcription server
 installer.nsh          # NSIS installer hooks (VC++, models, timer shortcut)
-scripts/
-├── after-pack.js      # electron-builder hook — restores Python permissions on Mac
-├── notarize-mac.js    # macOS code-signing afterSign hook
-└── notarize-mac-cli.js  # Standalone CLI to notarize + staple DMGs after build
-build/
-└── entitlements.mac.plist  # macOS hardened runtime entitlements
-data/kjv.json          # Bundled KJV Bible
+data/
+├── crossrefs.json     # Cross-reference data for co-quoted verses
+├── kjv.json           # Bundled KJV Bible
 ndi-addon/             # Native NDI SDK addon
 assets/                # App icons, splash screen, demo GIFs
 ```
@@ -241,12 +258,12 @@ assets/                # App icons, splash screen, demo GIFs
 
 ## 🌍 Open Source & Contributing
 
-AnchorCast is MIT licensed and open to contributions from developers, designers, church media operators, and testers.
+Utterance is MIT licensed and open to contributions from developers, designers, church media operators, and testers.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines and [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ```bash
-git clone https://github.com/anchorcastapp-team/anchorcastapp.git
+git clone https://github.com/GoodnessFx/Utterance.git
 ```
 
 ---
@@ -260,6 +277,25 @@ See [DISCLAIMER.md](DISCLAIMER.md) for important information regarding third-par
 ## ❤️ Mission
 
 To give every church, regardless of size or budget, powerful, reliable, and free tools for worship and the Word.
+
+---
+
+## What's New in v2.0
+
+| Feature | Description |
+|---------|-------------|
+| **Rebrand** | AnchorCast → Utterance throughout the entire codebase |
+| **Full Bible Coverage** | Cross-reference data for 65+ commonly co-quoted verse pairs |
+| **Semantic Verse Detection** | ONNX embeddings detect paraphrased scripture without direct quotes |
+| **Multi-Language UI** | 21 interface languages with downloadable translations |
+| **Public Domain Translations** | One-click download for ASV, WEB, and YLT |
+| **Simplified Operator Mode** | Streamlined dashboard for non-technical operators |
+| **Setup Wizard** | Guided first-run: language, display, PIN configuration |
+| **Crash Safety** | Local crash logging with automatic cleanup |
+| **Settings Export/Import** | Backup and restore settings across machines |
+| **Multi-Monitor Display** | Auto-detect and select target projection display |
+| **Auto-Update** | Background version checking with one-click install |
+| **Security Hardening** | PBKDF2 hashing, session tokens, rate limiting, CSP headers |
 
 ---
 

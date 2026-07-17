@@ -178,6 +178,28 @@ contextBridge.exposeInMainWorld('electronAPI',{
   generateSermonIntelligence: (opts) => ipcRenderer.invoke('generate-sermon-intelligence', opts || {}),
   getAnalyticsDashboard: (opts) => ipcRenderer.invoke('get-analytics-dashboard', opts || {}),
   saveClipPackage: (opts) => ipcRenderer.invoke('save-clip-package', opts || {}),
+  // Utterance — New feature channels
+  loadCrossrefs:    ()           => ipcRenderer.invoke('load-crossrefs'),
+  exportSettings:   ()           => ipcRenderer.invoke('export-settings'),
+  importSettings:   (filePath)   => ipcRenderer.invoke('import-settings', filePath),
+  getDisplays:      ()           => ipcRenderer.invoke('get-displays'),
+  setPreferredDisplay: (id)      => ipcRenderer.invoke('set-preferred-display', id),
+  getLanguage:      ()           => ipcRenderer.invoke('get-language'),
+  setLanguage:      (lang)       => ipcRenderer.invoke('set-language', lang),
+  getUiString:      (key)        => ipcRenderer.invoke('get-ui-string', key),
+  buildSemanticIndex: (trans)    => ipcRenderer.invoke('build-semantic-index', trans),
+  downloadPublicTranslation: (id) => ipcRenderer.invoke('download-public-translation', id),
+  listPublicTranslations: ()     => ipcRenderer.invoke('list-public-translations'),
+  onBuildSemanticIndex: (cb) => {
+    const sub = (_, trans) => cb(trans);
+    ipcRenderer.on('build-semantic-index-request', sub);
+    return () => ipcRenderer.removeListener('build-semantic-index-request', sub);
+  },
+  onSettingsImported: (cb) => {
+    const sub = () => cb();
+    ipcRenderer.on('settings-imported', sub);
+    return () => ipcRenderer.removeListener('settings-imported', sub);
+  },
   send: (channel, ...args) => {
     const allowed = ['open-ndi-panel', 'presentation-add-to-schedule'];
     if (!allowed.includes(channel)) return false;
@@ -225,6 +247,7 @@ contextBridge.exposeInMainWorld('electronAPI',{
       'theme-designer-open',
       'themes-updated',
       'song-manager-new-song','song-manager-open-song','license-file-opened','registration-complete','display-warning','timer-state-sync','timer-stopped','timer-flash-speed','set-projection-bg','show-clock','hide-clock','confirm-quit-with-transcript','update-available','update-available-mac','update-downloaded','update-download-progress','update-checking',
+      'build-semantic-index-request','settings-imported',
     ];
     if(!allowed.includes(channel)) return()=>{};
     const sub=(_,...args)=>cb(...args);

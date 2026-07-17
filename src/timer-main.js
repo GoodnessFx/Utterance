@@ -1,4 +1,4 @@
-// AnchorCast Timer — Standalone Entry Point
+// Utterance Timer — Standalone Entry Point
 // Runs as a completely independent Electron app.
 // Opens the Timer control window + its own projection screen.
 
@@ -9,11 +9,11 @@ const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
 
-// Force userData to AnchorCast (capital) to match main app and NSIS paths
+// Force userData to Utterance (capital) to match main app and NSIS paths
 if (process.platform === 'win32') {
   const _userData = path.join(
     process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-    'AnchorCast'
+    'Utterance'
   );
   try { app.setPath('userData', _userData); } catch(_) {}
 }
@@ -37,7 +37,7 @@ function createTimerWindow() {
     icon: APP_ICON,
     width: 1060, height: 820,
     minWidth: 860, minHeight: 680,
-    title: 'AnchorCast — Timer',
+    title: 'Utterance — Timer',
     backgroundColor: '#07080f',
     autoHideMenuBar: true,
     show: false,
@@ -213,10 +213,10 @@ const _noop = () => ({});
 function buildMenu() {
   const tpl = [
     { label: 'File', submenu: [
-      { label: 'Open AnchorCast', click: () => {
+      { label: 'Open Utterance', click: () => {
         const exe = app.getPath('exe');
         const dir = path.dirname(exe);
-        const main = path.join(dir, 'AnchorCast.exe');
+        const main = path.join(dir, 'Utterance.exe');
         if (fs.existsSync(main)) shell.openPath(main);
       }},
       { type: 'separator' },

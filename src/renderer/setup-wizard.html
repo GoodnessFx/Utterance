@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Utterance — Setup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e);
+      color: #e8e6f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wizard {
+      max-width: 640px;
+      width: 100%;
+      padding: 40px;
+    }
+    .step { display: none; }
+    .step.active { display: block; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+    h2 { font-size: 18px; font-weight: 500; margin-bottom: 32px; color: #b0a8c9; }
+    p.desc { color: #8a82a6; margin-bottom: 24px; line-height: 1.6; font-size: 14px; }
+    .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+    .option-card {
+      background: rgba(255,255,255,0.06);
+      border: 2px solid transparent;
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .option-card:hover { background: rgba(255,255,255,0.1); }
+    .option-card.selected { border-color: #7c6af0; background: rgba(124,106,240,0.15); }
+    .option-card .emoji { font-size: 32px; margin-bottom: 8px; }
+    .option-card .label { font-size: 15px; font-weight: 600; }
+    .option-card .sublabel { font-size: 12px; color: #8a82a6; margin-top: 4px; }
+    .pin-input-group { margin-bottom: 24px; }
+    .pin-input-group label { display: block; font-size: 14px; color: #b0a8c9; margin-bottom: 8px; }
+    .pin-input-group input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .pin-input-group input:focus { border-color: #7c6af0; }
+    .pin-input-group .hint { font-size: 12px; color: #6a6288; margin-top: 6px; }
+    .btn-row { display: flex; justify-content: space-between; margin-top: 32px; }
+    .btn {
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-next { background: #7c6af0; color: #fff; }
+    .btn-next:hover { background: #6b57e8; }
+    .btn-back { background: rgba(255,255,255,0.08); color: #b0a8c9; }
+    .btn-back:hover { background: rgba(255,255,255,0.12); }
+    .btn-skip { background: transparent; color: #6a6288; border: none; font-size: 13px; cursor: pointer; }
+    .btn-skip:hover { color: #8a82a6; }
+    .btn-done { background: #4caf50; color: #fff; }
+    .btn-done:hover { background: #43a047; }
+    .progress { display: flex; gap: 8px; margin-bottom: 40px; }
+    .progress-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      transition: all 0.3s;
+    }
+    .progress-dot.active { background: #7c6af0; width: 24px; border-radius: 4px; }
+    .progress-dot.done { background: #4caf50; }
+    .complete-icon { font-size: 64px; text-align: center; margin-bottom: 24px; }
+    .summary {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 14px;
+    }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-row .key { color: #8a82a6; }
+    .summary-row .val { color: #e8e6f0; font-weight: 500; }
+    select {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+      -webkit-appearance: none;
+      margin-bottom: 24px;
+    }
+    select option { background: #1a1a3e; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="wizard">
+    <div class="progress" id="progress">
+      <div class="progress-dot active"></div>
+      <div class="progress-dot"></div>
+      <div class="progress-dot"></div>
+      <div class="progress-dot"></div>
+    </div>
+
+    <!-- Step 1: Welcome -->
+    <div class="step active" id="step-0">
+      <h1>Welcome to Utterance</h1>
+      <h2>The sermon companion that displays scripture as it is spoken</h2>
+      <p class="desc">
+        Utterance listens to your sermon and automatically displays Bible verses on screen
+        as they are quoted. No need for a verse caller — just preach.
+      </p>
+      <div class="btn-row">
+        <div></div>
+        <button class="btn btn-next" onclick="nextStep()">Get Started</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Language -->
+    <div class="step" id="step-1">
+      <h1>Choose Your Language</h1>
+      <h2>Select the language for the Utterance interface</h2>
+      <p class="desc">
+        This changes the app language. You can also set the Bible translation and
+        transcription language separately in Settings later.
+      </p>
+      <select id="lang-select">
+        <option value="en">English</option>
+        <option value="es">Espanol</option>
+        <option value="fr">Francais</option>
+        <option value="de">Deutsch</option>
+        <option value="pt">Portugues</option>
+        <option value="zh">Chinese</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="ar">Arabic</option>
+        <option value="hi">Hindi</option>
+        <option value="ru">Russian</option>
+        <option value="it">Italian</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn btn-back" onclick="prevStep()">Back</button>
+        <button class="btn btn-next" onclick="nextStep()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Display -->
+    <div class="step" id="step-2">
+      <h1>Select Display</h1>
+      <h2>Choose where scripture verses will be projected</h2>
+      <p class="desc">
+        If you have an external monitor or projector connected, select it here.
+        Verses will appear fullscreen on that display.
+      </p>
+      <div class="option-grid" id="display-options">
+        <div class="option-card selected" data-display="primary" onclick="selectDisplay(this)">
+          <div class="emoji">🖥️</div>
+          <div class="label">Primary Display</div>
+          <div class="sublabel">Use your main screen</div>
+        </div>
+        <div class="option-card" data-display="external" onclick="selectDisplay(this)">
+          <div class="emoji">📽️</div>
+          <div class="label">External Display</div>
+          <div class="sublabel">Projector or second monitor</div>
+        </div>
+      </div>
+      <p class="desc" style="font-size: 12px; color: #6a6288;">
+        You can change this later in Settings. The projection window can also be
+        moved between monitors manually.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-back" onclick="prevStep()">Back</button>
+        <button class="btn btn-next" onclick="nextStep()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 4: PIN -->
+    <div class="step" id="step-3">
+      <h1>Lock Settings</h1>
+      <h2>Set a PIN to prevent accidental changes during service</h2>
+      <p class="desc">
+        A PIN locks the settings panel so the app cannot be accidentally
+        modified during a service. You can skip this and set one later.
+      </p>
+      <div class="pin-input-group">
+        <label for="pin-input">PIN (4-8 digits)</label>
+        <input type="password" id="pin-input" placeholder="Enter PIN" maxlength="8" inputmode="numeric">
+        <div class="hint">Keep this PIN private. It cannot be recovered if lost.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-back" onclick="prevStep()">Back</button>
+        <div>
+          <button class="btn btn-skip" onclick="skipPin()">Skip for now</button>
+          <button class="btn btn-next" onclick="savePin()">Set PIN</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Complete -->
+    <div class="step" id="step-4">
+      <div class="complete-icon">✅</div>
+      <h1>Setup Complete</h1>
+      <h2>Utterance is ready to use</h2>
+      <div class="summary">
+        <div class="summary-row">
+          <span class="key">Language</span>
+          <span class="val" id="summary-lang">English</span>
+        </div>
+        <div class="summary-row">
+          <span class="key">Display</span>
+          <span class="val" id="summary-display">Primary Display</span>
+        </div>
+        <div class="summary-row">
+          <span class="key">Settings Lock</span>
+          <span class="val" id="summary-pin">Not set</span>
+        </div>
+        <div class="summary-row">
+          <span class="key">Translation</span>
+          <span class="val">KJV (public domain)</span>
+        </div>
+      </div>
+      <p class="desc">
+        Click "Start Utterance" to go to the dashboard. You can begin recording
+        your sermon, and verses will be detected and projected automatically.
+      </p>
+      <div class="btn-row">
+        <div></div>
+        <button class="btn btn-done" onclick="finish()">Start Utterance</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 0;
+    const totalSteps = 5;
+    let selectedLang = 'en';
+    let selectedDisplay = 'primary';
+    let setupPin = '';
+
+    function updateProgress() {
+      const dots = document.querySelectorAll('.progress-dot');
+      dots.forEach((dot, i) => {
+        dot.className = 'progress-dot';
+        if (i === currentStep) dot.classList.add('active');
+        else if (i < currentStep) dot.classList.add('done');
+      });
+    }
+
+    function showStep(n) {
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.getElementById(`step-${n}`).classList.add('active');
+      currentStep = n;
+      updateProgress();
+    }
+
+    function nextStep() {
+      if (currentStep === 1) {
+        selectedLang = document.getElementById('lang-select').value;
+      }
+      if (currentStep === 2) {
+        // Display selection already tracked
+      }
+      if (currentStep === 3) {
+        savePin();
+        return;
+      }
+      if (currentStep < totalSteps - 1) showStep(currentStep + 1);
+    }
+
+    function prevStep() {
+      if (currentStep > 0) showStep(currentStep - 1);
+    }
+
+    function selectDisplay(el) {
+      document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedDisplay = el.dataset.display;
+    }
+
+    function savePin() {
+      const pin = document.getElementById('pin-input').value;
+      if (pin.length >= 4 && /^\d+$/.test(pin)) {
+        setupPin = pin;
+      }
+      if (currentStep < totalSteps - 1) showStep(currentStep + 1);
+      updateSummary();
+    }
+
+    function skipPin() {
+      setupPin = '';
+      if (currentStep < totalSteps - 1) showStep(currentStep + 1);
+      updateSummary();
+    }
+
+    function updateSummary() {
+      const langNames = { en: 'English', es: 'Espanol', fr: 'Francais', de: 'Deutsch', pt: 'Portugues', zh: 'Chinese', ja: 'Japanese', ko: 'Korean', ar: 'Arabic', hi: 'Hindi', ru: 'Russian', it: 'Italian' };
+      document.getElementById('summary-lang').textContent = langNames[selectedLang] || selectedLang;
+      document.getElementById('summary-display').textContent = selectedDisplay === 'external' ? 'External Display' : 'Primary Display';
+      document.getElementById('summary-pin').textContent = setupPin ? 'Set' : 'Not set';
+    }
+
+    function finish() {
+      if (window.utteranceSetup) {
+        window.utteranceSetup.complete({
+          language: selectedLang,
+          display: selectedDisplay,
+          pin: setupPin,
+        });
+      }
+    }
+
+    updateProgress();
+  </script>
+</body>
+</html>

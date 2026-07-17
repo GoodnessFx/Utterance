@@ -1,4 +1,4 @@
-; AnchorCast NSIS Installer Hooks
+; Utterance NSIS Installer Hooks
 ; VC++ is bundled in the installer — no internet needed for it.
 ; ctranslate2.dll requires msvcp140.dll/vcruntime140.dll (not in the wheel).
 
@@ -7,8 +7,8 @@
 
 !macro customInstall
 
-  ; ── Kill running AnchorCast ───────────────────────────────────────────────
-  ExecWait 'taskkill /F /IM "AnchorCast.exe" /T' $0
+  ; ── Kill running Utterance ───────────────────────────────────────────────
+  ExecWait 'taskkill /F /IM "Utterance.exe" /T' $0
 
   ; ── Visual C++ 2015-2022 Redistributable ─────────────────────────────────
   ; Bundled in installer — works completely offline.
@@ -69,18 +69,18 @@
 
   ; ── Whisper Models ────────────────────────────────────────────────────────
   models_section:
-  CreateDirectory "$APPDATA\AnchorCast\AnchorCastData\WhisperModels"
+  CreateDirectory "$APPDATA\Utterance\UtteranceData\WhisperModels"
 
   IfFileExists "$INSTDIR\resources\models\models--Systran--faster-whisper-small.en" models_bundled models_not_bundled
 
   models_bundled:
     DetailPrint "Copying bundled Whisper models to AppData..."
-    ExecWait 'robocopy "$INSTDIR\resources\models" "$APPDATA\AnchorCast\AnchorCastData\WhisperModels" /E /NFL /NDL /NJH /NJS /NC /NS /NP' $0
+    ExecWait 'robocopy "$INSTDIR\resources\models" "$APPDATA\Utterance\UtteranceData\WhisperModels" /E /NFL /NDL /NJH /NJS /NC /NS /NP' $0
     DetailPrint "Whisper models copied (robocopy code $0)."
     Goto verify_engine
 
   models_not_bundled:
-    IfFileExists "$APPDATA\AnchorCast\AnchorCastData\WhisperModels\models--Systran--faster-whisper-small.en" verify_engine models_ask
+    IfFileExists "$APPDATA\Utterance\UtteranceData\WhisperModels\models--Systran--faster-whisper-small.en" verify_engine models_ask
 
   models_ask:
     MessageBox MB_YESNO|MB_ICONQUESTION \
@@ -113,7 +113,7 @@ Click No to download automatically on first use." \
     FileWrite $1 "warnings.filterwarnings('ignore')$\n"
     FileWrite $1 "logging.disable(logging.CRITICAL)$\n"
     FileWrite $1 "from faster_whisper import WhisperModel$\n"
-    FileWrite $1 "d = os.path.join(os.environ['APPDATA'], 'AnchorCast', 'AnchorCastData', 'WhisperModels')$\n"
+    FileWrite $1 "d = os.path.join(os.environ['APPDATA'], 'Utterance', 'UtteranceData', 'WhisperModels')$\n"
     FileWrite $1 "os.makedirs(d, exist_ok=True)$\n"
     FileWrite $1 "WhisperModel('small.en', device='cpu', compute_type='int8', download_root=d)$\n"
     FileClose $1
@@ -159,23 +159,23 @@ You can also do this later from inside the app." \
       DetailPrint "AI engine verification failed."
       MessageBox MB_OK|MB_ICONINFORMATION \
         "The AI transcription engine could not be verified.$\n$\n\
-Please restart Windows, then reopen AnchorCast.$\n\
+Please restart Windows, then reopen Utterance.$\n\
 The app will work fully after the restart."
 
-  ; ── AnchorCast Timer Shortcuts ────────────────────────────────────────────
+  ; ── Utterance Timer Shortcuts ────────────────────────────────────────────
   done:
-  DetailPrint "Creating AnchorCast Timer shortcuts..."
-  CreateShortcut "$DESKTOP\AnchorCast Timer.lnk" \
-    "$INSTDIR\AnchorCast.exe" "--timer" \
-    "$INSTDIR\AnchorCast.exe" 0
-  CreateShortcut "$SMPROGRAMS\AnchorCast\AnchorCast Timer.lnk" \
-    "$INSTDIR\AnchorCast.exe" "--timer" \
-    "$INSTDIR\AnchorCast.exe" 0
-  DetailPrint "AnchorCast Timer shortcuts created."
+  DetailPrint "Creating Utterance Timer shortcuts..."
+  CreateShortcut "$DESKTOP\Utterance Timer.lnk" \
+    "$INSTDIR\Utterance.exe" "--timer" \
+    "$INSTDIR\Utterance.exe" 0
+  CreateShortcut "$SMPROGRAMS\Utterance\Utterance Timer.lnk" \
+    "$INSTDIR\Utterance.exe" "--timer" \
+    "$INSTDIR\Utterance.exe" 0
+  DetailPrint "Utterance Timer shortcuts created."
 
 !macroend
 
 !macro customUnInstall
-  Delete "$DESKTOP\AnchorCast Timer.lnk"
-  Delete "$SMPROGRAMS\AnchorCast\AnchorCast Timer.lnk"
+  Delete "$DESKTOP\Utterance Timer.lnk"
+  Delete "$SMPROGRAMS\Utterance\Utterance Timer.lnk"
 !macroend

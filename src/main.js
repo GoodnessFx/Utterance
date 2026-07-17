@@ -1,24 +1,24 @@
-// AnchorCast — Main Process v2
+// Utterance — Main Process v2
 // HTTP remote control · NDI hooks · sermon history · theme designer window
 const {app,BrowserWindow,ipcMain,screen,dialog,Menu,shell,protocol,net,clipboard,powerSaveBlocker}=require('electron');
 const path=require('path');
 const os=require('os');
 
-// ── Force userData to use 'AnchorCast' (capital A+C) not 'anchorcast' ────────
+// ── Force userData to use 'Utterance' (capital A+C) not 'utterance' ────────
 // Electron derives userData from package.json "name" which is lowercase.
 // We override it here before any path is read so all data goes to:
-// AppData\Roaming\AnchorCast\ (matching what users expect and what NSIS writes to)
+// AppData\Roaming\Utterance\ (matching what users expect and what NSIS writes to)
 if (!app.isPackaged || process.platform === 'win32') {
   const _userData = path.join(
     process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-    'AnchorCast'
+    'Utterance'
   );
   try { app.setPath('userData', _userData); } catch(_) {}
 }
 
 // ── Timer standalone mode ─────────────────────────────────────────────────────
 // If launched with --timer flag, load timer-main.js and stop here.
-// This is how the "AnchorCast Timer" shortcut works — same exe, different mode.
+// This is how the "Utterance Timer" shortcut works — same exe, different mode.
 if (process.argv.includes('--timer')) {
   module.exports = require('./timer-main.js');
 } else {
@@ -29,6 +29,13 @@ const http=require('http');
 const https=require('https');
 const AdmZip=require('adm-zip');
 const {spawn,spawnSync,execFileSync}=require('child_process');
+// Utterance — Additional modules
+const crashReporter = require('./crash-reporter');
+const autoUpdater = require('./auto-updater');
+const { MultiMonitorManager } = require('./multi-monitor');
+const { LanguageManager } = require('./language-support');
+const settingsExport = require('./settings-export');
+const bibleDownloader = require('./bible-downloader');
 
 
 // ─── REGISTRATION SYSTEM ─────────────────────────────────────────────────────
@@ -36,7 +43,7 @@ const {spawn,spawnSync,execFileSync}=require('child_process');
 // Flow: first launch → registration form → email with magic link → auto-activate
 // Token = HMAC-SHA256(secret, email + '|' + hwId) — server-free, unforgeable
 
-const REG_SECRET   = 'anchorcast-registration-2025-hmac-token';
+const REG_SECRET   = 'utterance-registration-2025-hmac-token';
 const REG_FILE     = path.join(app.getPath('userData'), 'registration.json');
 
 // Gmail SMTP config
@@ -44,8 +51,8 @@ const SMTP_HOST    = 'smtp.gmail.com';
 const SMTP_PORT    = 587;
 const SMTP_USER    = 'REPLACE_WITH_APP_EMAIL_ADDRESS';
 const SMTP_PASS    = 'REPLACE_WITH_APP_PASSWORD';  // Gmail App Password (16 chars)
-const FROM_EMAIL   = 'donotreply@anchorcastapp.com';
-const APP_PROTOCOL = 'anchorcast';
+const FROM_EMAIL   = 'donotreply@utteranceapp.com';
+const APP_PROTOCOL = 'utterance';
 
 function getHardwareId() {
   const raw = `${os.hostname()}|${(os.cpus()[0]?.model||'cpu')}|${os.platform()}|${os.arch()}`;
@@ -172,7 +179,7 @@ function sendSmtpEmail({ to, subject, html, text }) {
     const boundary = 'acbndry' + Date.now().toString(36);
 
     const msgLines = [
-      `From: AnchorCast <${FROM_EMAIL}>`,
+      `From: Utterance <${FROM_EMAIL}>`,
       `To: ${to}`,
       `Subject: ${subject}`,
       `MIME-Version: 1.0`,
@@ -228,7 +235,7 @@ function sendSmtpEmail({ to, subject, html, text }) {
         case 'banner':
           if (code !== '220') return fail('Expected 220 banner, got: ' + line);
           state = 'ehlo';
-          writeSock(`EHLO anchorcastapp.com${CRLF}`);
+          writeSock(`EHLO utteranceapp.com${CRLF}`);
           break;
 
         case 'ehlo':
@@ -243,7 +250,7 @@ function sendSmtpEmail({ to, subject, html, text }) {
           state = 'ehlo2';
           tlsSock = tls.connect({ socket: sock, servername: SMTP_HOST }, () => {
             tlsSock.on('data', d => onData(d));
-            writeSock(`EHLO anchorcastapp.com${CRLF}`);
+            writeSock(`EHLO utteranceapp.com${CRLF}`);
           });
           tlsSock.on('error', err => fail(err.message));
           break;
@@ -332,13 +339,13 @@ async function sendRegistrationEmail(fullName, email, churchName) {
   box-shadow:0 2px 16px rgba(0,0,0,.1);overflow:hidden">
   <div style="background:linear-gradient(135deg,#0a0a1a,#1a1a3a);padding:28px 30px;text-align:center">
     <div style="font-size:28px;margin-bottom:8px">⚓</div>
-    <div style="color:#c9a84c;font-size:20px;font-weight:700;letter-spacing:1px">ANCHORCAST</div>
+    <div style="color:#c9a84c;font-size:20px;font-weight:700;letter-spacing:1px">UTTERANCE</div>
     <div style="color:#888;font-size:11px;letter-spacing:2px;margin-top:4px">LIVE SERMON DISPLAY</div>
   </div>
   <div style="padding:30px">
     <h2 style="color:#1a1a2e;font-size:18px;margin:0 0 12px">Hi ${fullName},</h2>
     <p style="color:#444;font-size:14px;line-height:1.7;margin:0 0 20px">
-      Thank you for registering AnchorCast${churchName ? ' at <strong>' + churchName + '</strong>' : ''}!
+      Thank you for registering Utterance${churchName ? ' at <strong>' + churchName + '</strong>' : ''}!
       Click the button below to complete your registration and unlock the app.
     </p>
     <div style="text-align:center;margin:28px 0">
@@ -360,24 +367,24 @@ async function sendRegistrationEmail(fullName, email, churchName) {
     <div style="color:#aaa;font-size:11px;text-align:center;line-height:1.6">
       Hardware ID: <strong style="color:#666">${hwId}</strong><br>
       This link is specific to this device and cannot be shared.<br>
-      AnchorCast is free &amp; open source —
-      <a href="https://github.com/anchorcastapp-team/anchorcastapp" style="color:#c9a84c">
-        github.com/anchorcastapp-team/anchorcastapp
+      Utterance is free &amp; open source —
+      <a href="https://github.com/utteranceapp-team/utteranceapp" style="color:#c9a84c">
+        github.com/utteranceapp-team/utteranceapp
       </a>
     </div>
   </div>
 </div>
 </body></html>`;
 
-  const text = `Hi ${fullName},\n\nThank you for registering AnchorCast${churchName ? ' at ' + churchName : ''}!\n\nClick the link below to complete your registration:\n\n${link}\n\nHardware ID: ${hwId}\n\nAnchorCast is free & open source: https://github.com/anchorcastapp-team/anchorcastapp`;
+  const text = `Hi ${fullName},\n\nThank you for registering Utterance${churchName ? ' at ' + churchName : ''}!\n\nClick the link below to complete your registration:\n\n${link}\n\nHardware ID: ${hwId}\n\nUtterance is free & open source: https://github.com/utteranceapp-team/utteranceapp`;
 
-  await sendSmtpEmail({ to: email, subject: 'Complete your AnchorCast Registration', html, text });
+  await sendSmtpEmail({ to: email, subject: 'Complete your Utterance Registration', html, text });
   return { success: true, token };
 }
 
 function requiresRegistration(featureName) {
   if (isRegistered()) return null;
-  return { blocked: true, reason: `${featureName} requires registration. Please register AnchorCast to continue.` };
+  return { blocked: true, reason: `${featureName} requires registration. Please register Utterance to continue.` };
 }
 // ─── END REGISTRATION SYSTEM ──────────────────────────────────────────────────
 // (spawnSync required at top — BUG-A fix)
@@ -523,7 +530,7 @@ const UD=app.getPath('userData');
 const ASSETS_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'assets')
   : path.join(app.getAppPath(), 'assets');
-const APPDATA_ROOT       = path.join(UD, 'AnchorCastData');
+const APPDATA_ROOT       = path.join(UD, 'UtteranceData');
 const DATA_DIR           = path.join(APPDATA_ROOT, 'Data');
 const BIBLE_DIR          = path.join(APPDATA_ROOT, 'Bibles');
 const PRES_ASSETS        = path.join(APPDATA_ROOT, 'Presentation');
@@ -711,8 +718,8 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
-    // Check for anchorcast:// protocol URL in argv (Windows/Linux)
-    const protocolUrl = argv.find(a => a.startsWith('anchorcast://'));
+    // Check for utterance:// protocol URL in argv (Windows/Linux)
+    const protocolUrl = argv.find(a => a.startsWith('utterance://'));
     if (protocolUrl) { _handleProtocolUrl(protocolUrl); }
     const scheduleArg = _extractScheduleArg(argv);
     if (scheduleArg) _queueScheduleOpen(scheduleArg);
@@ -727,7 +734,7 @@ if (!gotSingleInstanceLock) {
     event.preventDefault();
     if (_queueScheduleOpen(filePath)) _consumePendingScheduleOpen();
   });
-  // macOS: handle anchorcast:// protocol URL
+  // macOS: handle utterance:// protocol URL
   app.on('open-url', (event, url) => {
     event.preventDefault();
     _handleProtocolUrl(url);
@@ -762,8 +769,8 @@ app.whenReady().then(async ()=>{
   whisperSource = currentSettings.transcriptSource || 'local';
   const initialScheduleArg = _extractScheduleArg(process.argv);
   if (initialScheduleArg) _queueScheduleOpen(initialScheduleArg);
-  // Check for anchorcast:// protocol URL passed at startup
-  const initialProtocolUrl = process.argv.find(a => a.startsWith('anchorcast://'));
+  // Check for utterance:// protocol URL passed at startup
+  const initialProtocolUrl = process.argv.find(a => a.startsWith('utterance://'));
   if (initialProtocolUrl) _handleProtocolUrl(initialProtocolUrl);
 
   // ── Grant microphone permission to all windows ─────────────────────────────
@@ -805,7 +812,7 @@ app.whenReady().then(async ()=>{
 
   // Register media:// protocol handler — serves local files with range request support
   // Range requests are required for <video> seek/play to work with MP4/WMA etc.
-  // Register anchorcast:// protocol for magic link activation from email
+  // Register utterance:// protocol for magic link activation from email
   if (process.defaultApp) {
     if (process.argv.length >= 2) app.setAsDefaultProtocolClient(APP_PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
   } else {
@@ -903,6 +910,15 @@ app.whenReady().then(async ()=>{
   createMainWindow();
   buildMenu();
   startHttpServer(currentSettings.httpPort||8080);
+
+  // Utterance — Initialize new modules
+  crashReporter.init();
+  autoUpdater.init(mainWindow, APPDATA_ROOT);
+  const _multiMonitor = new MultiMonitorManager();
+  if (currentSettings.preferredDisplayId) {
+    _multiMonitor.setPreferredDisplay(currentSettings.preferredDisplayId);
+  }
+  const _languageManager = new LanguageManager(APPDATA_ROOT);
   if(currentSettings.ndiEnabled){
     setTimeout(()=>startNdi(), 3000);
   }
@@ -1102,7 +1118,7 @@ function _handleProtocolUrl(url) {
 
     // Verify hardware ID matches
     if (hwIdParam && hwIdParam !== hwId) {
-      dialog.showMessageBox({ type:'error', title:'AnchorCast Registration',
+      dialog.showMessageBox({ type:'error', title:'Utterance Registration',
         message:'This registration link was created for a different device.',
         detail:'Please register again using Help → Register on this device.',
         buttons:['OK'] });
@@ -1126,9 +1142,9 @@ function _handleProtocolUrl(url) {
       mainWindow?.webContents.send('registration-complete', result);
       dialog.showMessageBox(mainWindow || undefined, {
         type:'info', title:'Registration Complete',
-        message:'🎉 AnchorCast is now registered!',
+        message:'🎉 Utterance is now registered!',
         detail:`This product is registered to:\n${result.fullName}\n${result.email}`,
-        buttons:['Start Using AnchorCast']
+        buttons:['Start Using Utterance']
       });
     } else {
       dialog.showMessageBox({ type:'error', title:'Registration Failed',
@@ -1149,7 +1165,7 @@ function showRegistrationWindow() {
   const win = new BrowserWindow({
     icon: APP_ICON,
     width: 520, height: 720,
-    title: 'Register AnchorCast',
+    title: 'Register Utterance',
     backgroundColor: '#0a0a1a',
     resizable: false,
     show: false,
@@ -1176,7 +1192,7 @@ function showRegistrationWindow() {
 
 function buildRegistrationHtml() {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Register AnchorCast</title>
+<title>Register Utterance</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -1224,15 +1240,15 @@ function buildRegistrationHtml() {
 </head><body>
   <div class="header">
     <div class="logo-icon">⚓</div>
-    <div class="logo-text">ANCHORCAST</div>
+    <div class="logo-text">UTTERANCE</div>
     <div class="logo-sub">LIVE SERMON DISPLAY</div>
   </div>
 
   <div class="body" id="formBody">
     <div>
-      <h2>Register AnchorCast</h2>
+      <h2>Register Utterance</h2>
       <p class="desc" style="margin-top:6px">
-        AnchorCast is <a onclick="openGitHub()">free &amp; open source</a>.
+        Utterance is <a onclick="openGitHub()">free &amp; open source</a>.
         Registration is free and helps us know our users for support.
       </p>
     </div>
@@ -1242,7 +1258,7 @@ function buildRegistrationHtml() {
       1. Fill in your details below<br>
       2. Click <b>Send Registration Email</b><br>
       3. Check your inbox and click the link<br>
-      4. AnchorCast opens and registers automatically ✅
+      4. Utterance opens and registers automatically ✅
     </div>
 
     <div class="field">
@@ -1268,7 +1284,7 @@ function buildRegistrationHtml() {
     <div class="hwid" id="hwIdDisplay">Hardware ID: loading…</div>
     <div class="oss">
       Free &amp; Open Source —
-      <a onclick="openGitHub()">github.com/anchorcastapp-team/anchorcastapp</a>
+      <a onclick="openGitHub()">github.com/utteranceapp-team/utteranceapp</a>
     </div>
   </div>
 
@@ -1288,7 +1304,7 @@ function buildRegistrationHtml() {
     })();
 
     function openGitHub() {
-      window.electronAPI?.openExternal('https://github.com/anchorcastapp-team/anchorcastapp');
+      window.electronAPI?.openExternal('https://github.com/utteranceapp-team/utteranceapp');
     }
 
     async function sendEmail() {
@@ -1333,7 +1349,7 @@ function buildRegistrationHtml() {
               'color:#666;font-size:11px;cursor:pointer;font-family:inherit;margin-top:4px}' +
             '.btn-back:hover{color:#c9a84c;border-color:rgba(201,168,76,.3)}' +
             '</style>' +
-            '<div class="hdr"><div class="logo">⚓ ANCHORCAST</div>' +
+            '<div class="hdr"><div class="logo">⚓ UTTERANCE</div>' +
               '<div style="color:#555;font-size:10px;letter-spacing:1.5px;margin-top:3px">LIVE SERMON DISPLAY</div></div>' +
             '<div class="content">' +
               '<div class="icon">📧</div>' +
@@ -1341,9 +1357,9 @@ function buildRegistrationHtml() {
               '<div class="email-box">✉ Email sent to: ' + email + '</div>' +
               '<div class="steps-ok"><b>Next steps:</b><br>' +
                 '1. Open your email inbox<br>' +
-                '2. Find the email from AnchorCast<br>' +
+                '2. Find the email from Utterance<br>' +
                 '3. Click <b>Complete Registration</b><br>' +
-                '4. AnchorCast opens and registers automatically ✅' +
+                '4. Utterance opens and registers automatically ✅' +
               '</div>' +
               '<div class="sub">This link is specific to this device.<br>Didn\'t receive it? Check your spam folder.</div>' +
               '<button class="btn-back" onclick="location.reload()">← Back / Resend Email</button>' +
@@ -1455,7 +1471,7 @@ function createMainWindow(){
     icon: APP_ICON,
     width:Math.min(1680,width), height:Math.min(960,height),
     minWidth:1280, minHeight:720,
-    title:'AnchorCast', backgroundColor:'#08101d',
+    title:'Utterance', backgroundColor:'#08101d',
     show: false,
     opacity: 0,  // start invisible — prevents any white flash at OS level
     webPreferences:{
@@ -1784,7 +1800,7 @@ function createHistoryWindow(){
   historyWindow=new BrowserWindow({
     icon: APP_ICON,
     width:960,height:680,parent:mainWindow,
-    title:'AnchorCast — History',backgroundColor:'#0a0a0f',
+    title:'Utterance — History',backgroundColor:'#0a0a0f',
     show: false,
     webPreferences:{nodeIntegration:false,contextIsolation:true,preload:path.join(__dirname,'preload.js')},
   });
@@ -1810,7 +1826,7 @@ function createSettingsWindow(startSection=''){
     icon: APP_ICON,
     width:680, height:600,
     parent:mainWindow, modal:false,
-    title:'AnchorCast — Settings',
+    title:'Utterance — Settings',
     backgroundColor:'#0a0a0f',
     show: false,
     resizable:true, minWidth:600, minHeight:520,
@@ -1836,7 +1852,7 @@ function createBibleManagerWindow(){
   const win = new BrowserWindow({
     icon: APP_ICON,
     width: 980, height: 760,
-    title: 'AnchorCast — Bible Manager',
+    title: 'Utterance — Bible Manager',
     backgroundColor: '#0a0a0f',
     show: false,
     resizable: true, minWidth: 760, minHeight: 600,
@@ -1863,7 +1879,7 @@ function createAdaptiveManagementWindow(){
     icon: APP_ICON,
     width: 1180,
     height: 820,
-    title: 'AnchorCast — Adaptive Management',
+    title: 'Utterance — Adaptive Management',
     backgroundColor: '#0a0a0f',
     resizable: true,
     minWidth: 980,
@@ -1884,7 +1900,7 @@ function createHelpWindow(){
   const win=new BrowserWindow({
     icon: APP_ICON,
     width:960, height:700,
-    title:'AnchorCast — Help & Documentation',
+    title:'Utterance — Help & Documentation',
     backgroundColor:'#08080f',
     show: false,
     resizable:true, minWidth:700, minHeight:500,
@@ -1911,7 +1927,7 @@ function createSongManagerWindow(){
   songManagerWindow = new BrowserWindow({
     icon: APP_ICON,
     width:1100, height:720,
-    title:'AnchorCast — Song Manager',
+    title:'Utterance — Song Manager',
     backgroundColor:'#08080f',
     show: false,
     resizable:true, minWidth:800, minHeight:550,
@@ -1938,7 +1954,7 @@ function createThemeWindow(data){
   themeWindow=new BrowserWindow({
     icon: APP_ICON,
     width:1200,height:780,parent:mainWindow,
-    title:'Theme Designer — AnchorCast',backgroundColor:'#08080f',
+    title:'Theme Designer — Utterance',backgroundColor:'#08080f',
     show: false,
     minWidth:960,minHeight:640,
     webPreferences:{nodeIntegration:false,contextIsolation:true,preload:path.join(__dirname,'preload.js')},
@@ -1958,7 +1974,7 @@ function createPresentationEditorWindow(data){
   presEditorWindow = new BrowserWindow({
     icon: APP_ICON,
     width: 1280, height: 800, parent: mainWindow,
-    title: 'Presentation Editor — AnchorCast',
+    title: 'Presentation Editor — Utterance',
     backgroundColor: '#0d0d1a', minWidth: 960, minHeight: 600,
     show: false,
     webPreferences: { nodeIntegration:false, contextIsolation:true, preload:path.join(__dirname,'preload.js') },
@@ -2012,8 +2028,8 @@ ipcMain.on('presentation-add-to-schedule', (_evt, payload) => {
 
 // ── Menu ──────────────────────────────────────────────────────────────────────
 // ── Auto-updater ──────────────────────────────────────────────────────────────
-const GITHUB_OWNER = 'anchorcastapp-team';
-const GITHUB_REPO  = 'anchorcastapp';
+const GITHUB_OWNER = 'utteranceapp-team';
+const GITHUB_REPO  = 'utteranceapp';
 let _manualUpdateCheck = false;
 
 async function checkForUpdatesMac(isManual = false) {
@@ -2034,12 +2050,12 @@ async function checkForUpdatesMac(isManual = false) {
     const [cMaj, cMin, cPat] = parseVer(currentVersion);
     const isNewer = lMaj > cMaj || (lMaj === cMaj && lMin > cMin) || (lMaj === cMaj && lMin === cMin && lPat > cPat);
     if (isNewer) {
-      const dmgName = `AnchorCastUpdate_v${latestVersion}_${arch}.dmg`;
+      const dmgName = `UtteranceUpdate_v${latestVersion}_${arch}.dmg`;
       const downloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/${dmgName}`;
       mainWindow?.webContents.send('update-available-mac', { version: latestVersion, downloadUrl });
     } else if (isManual) {
       _manualUpdateCheck = false;
-      dialog.showMessageBox(mainWindow, { type:'info', title:'AnchorCast is up to date', message:`You're running the latest version.`, detail:`AnchorCast v${currentVersion} is the latest version available.`, buttons:['OK'] });
+      dialog.showMessageBox(mainWindow, { type:'info', title:'Utterance is up to date', message:`You're running the latest version.`, detail:`Utterance v${currentVersion} is the latest version available.`, buttons:['OK'] });
     }
   } catch(err) {
     console.warn('[Updater] Mac check failed:', err.message);
@@ -2054,7 +2070,7 @@ function initWindowsUpdater() {
     autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.channel = 'latest';
     autoUpdater.on('update-available', (info) => { mainWindow?.webContents.send('update-available', { version: info.version }); });
-    autoUpdater.on('update-not-available', () => { if (_manualUpdateCheck) { _manualUpdateCheck = false; dialog.showMessageBox(mainWindow, { type:'info', title:'AnchorCast is up to date', message:`You're running the latest version.`, detail:`AnchorCast v${app.getVersion()} is the latest version available.`, buttons:['OK'] }); } });
+    autoUpdater.on('update-not-available', () => { if (_manualUpdateCheck) { _manualUpdateCheck = false; dialog.showMessageBox(mainWindow, { type:'info', title:'Utterance is up to date', message:`You're running the latest version.`, detail:`Utterance v${app.getVersion()} is the latest version available.`, buttons:['OK'] }); } });
     autoUpdater.on('download-progress', (p) => { mainWindow?.webContents.send('update-download-progress', { percent: Math.round(p.percent) }); });
     autoUpdater.on('update-downloaded', (info) => { mainWindow?.webContents.send('update-downloaded', { version: info.version }); });
     autoUpdater.on('error', (err) => console.warn('[Updater]', err.message));
@@ -2191,7 +2207,7 @@ function buildMenu(){
       {label:'Check for Updates…',click:()=>checkForUpdatesManual()},
       {type:'separator'},
       {label:'Registration',click:()=>createRegistrationStatusWindow()},
-      {label:'About AnchorCast',click:showAbout},
+      {label:'About Utterance',click:showAbout},
     ]},
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(t));
@@ -2337,7 +2353,7 @@ function makeQrFallbackDataUri(text=''){
     }
     const line1 = safe.slice(0, 44);
     const line2 = safe.slice(44, 88);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas}" height="${canvas}" viewBox="0 0 ${canvas} ${canvas}"><rect width="${canvas}" height="${canvas}" rx="18" fill="#ffffff"/><rect x="6" y="6" width="${canvas-12}" height="${canvas-12}" rx="14" fill="#ffffff" stroke="#d4af37" stroke-width="2"/>${rects.join('')}<text x="${canvas/2}" y="${pad + size*cell + 28}" text-anchor="middle" font-size="14" font-family="Segoe UI, Arial, sans-serif" fill="#111" font-weight="700">AnchorCast role link</text><text x="${canvas/2}" y="${pad + size*cell + 48}" text-anchor="middle" font-size="10" font-family="Segoe UI, Arial, sans-serif" fill="#444">${line1}</text><text x="${canvas/2}" y="${pad + size*cell + 62}" text-anchor="middle" font-size="10" font-family="Segoe UI, Arial, sans-serif" fill="#444">${line2}</text></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas}" height="${canvas}" viewBox="0 0 ${canvas} ${canvas}"><rect width="${canvas}" height="${canvas}" rx="18" fill="#ffffff"/><rect x="6" y="6" width="${canvas-12}" height="${canvas-12}" rx="14" fill="#ffffff" stroke="#d4af37" stroke-width="2"/>${rects.join('')}<text x="${canvas/2}" y="${pad + size*cell + 28}" text-anchor="middle" font-size="14" font-family="Segoe UI, Arial, sans-serif" fill="#111" font-weight="700">Utterance role link</text><text x="${canvas/2}" y="${pad + size*cell + 48}" text-anchor="middle" font-size="10" font-family="Segoe UI, Arial, sans-serif" fill="#444">${line1}</text><text x="${canvas/2}" y="${pad + size*cell + 62}" text-anchor="middle" font-size="10" font-family="Segoe UI, Arial, sans-serif" fill="#444">${line2}</text></svg>`;
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   } catch (_) { return ''; }
 }
@@ -2393,7 +2409,7 @@ function makeRoleRemoteLinks(){
 }
 
 function getRemoteAuthHeader(req){
-  return String(req.headers['x-remote-pin'] || req.headers['x-anchorcast-pin'] || '').trim();
+  return String(req.headers['x-remote-pin'] || req.headers['x-utterance-pin'] || '').trim();
 }
 function getRemotePinFromUrl(reqUrl=''){
   try {
@@ -2577,14 +2593,14 @@ function startHttpServer(port){
   stopHttpServer();
   // Respect remoteEnabled setting
   if(currentSettings.remoteEnabled === false){
-    console.log('[AnchorCast] Remote control disabled in settings.');
+    console.log('[Utterance] Remote control disabled in settings.');
     mainWindow?.webContents.send('http-server-started', { port, ip: null, disabled: true });
     return;
   }
   httpServer=http.createServer((req,res)=>{
     res.setHeader('Access-Control-Allow-Origin','*');
     res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers','Content-Type, X-Remote-Pin, X-AnchorCast-Pin, X-Remote-Token, X-Remote-Role');
+    res.setHeader('Access-Control-Allow-Headers','Content-Type, X-Remote-Pin, X-Utterance-Pin, X-Remote-Token, X-Remote-Role');
     res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma','no-cache');
     res.setHeader('Expires','0');
@@ -2740,7 +2756,7 @@ function startHttpServer(port){
   });
   httpServer.listen(port,'0.0.0.0',()=>{
     const ip=localIp();
-    console.log(`[AnchorCast] Remote: http://${ip}:${port}/remote`);
+    console.log(`[Utterance] Remote: http://${ip}:${port}/remote`);
     mainWindow?.webContents.send('http-server-started',{port,ip,disabled:false});
   });
   httpServer.on('error',e=>{
@@ -2936,7 +2952,7 @@ function buildRemoteHTML(port){
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AnchorCast Remote</title>
+<title>Utterance Remote</title>
 <style>
 :root{
   --gold:#C9A84C;--gold-dim:rgba(201,168,76,.18);--gold-glow:rgba(201,168,76,.07);
@@ -3096,7 +3112,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="hdr">
   <div class="hdr-brand">
     <div class="hdr-cross">✝</div>
-    <div><div class="hdr-title">AnchorCast</div><div class="hdr-sub">Remote</div></div>
+    <div><div class="hdr-title">Utterance</div><div class="hdr-sub">Remote</div></div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <div class="onair" id="onairBadge"><div class="onair-dot"></div>ON AIR</div>
@@ -3536,7 +3552,7 @@ function bootstrap(){
     }
     if(status===401||status===0){
       if(AUTH_REQUIRED||status===401)show($('authBox'),true);
-      setStatus(status===0?'Cannot reach AnchorCast':'\uD83D\uDD12 PIN Required',
+      setStatus(status===0?'Cannot reach Utterance':'\uD83D\uDD12 PIN Required',
                 status===0?'Check your Wi-Fi connection':'Enter your PIN to continue',
                 status===0?'\u26A0':'\uD83D\uDD10');
       if(status===401){
@@ -3617,16 +3633,16 @@ window.addEventListener('load',function(){
 function showNdiInfo(){
   const ip=localIp();
   dialog.showMessageBox(mainWindow,{
-    type:'info',title:'External Output — AnchorCast',
+    type:'info',title:'External Output — Utterance',
     message:'External Output Setup',
     detail:
-      'AnchorCast supports NDI output via the NDI SDK.\n\n'+
+      'Utterance supports NDI output via the NDI SDK.\n\n'+
       'Setup steps:\n'+
       '  1. Install the NDI Runtime from ndi.video/download\n'+
       '  2. Build the NDI addon (see README for Windows/macOS instructions)\n'+
       '  3. If the SDK or build tools are missing, the app falls back to MJPEG browser output\n\n'+
-      'When NDI is ready, AnchorCast appears as an NDI source on your network.\n'+
-      'In OBS: Add Source → NDI Source → AnchorCast\n\n'+
+      'When NDI is ready, Utterance appears as an NDI source on your network.\n'+
+      'In OBS: Add Source → NDI Source → Utterance\n\n'+
       `Your local IP: ${ip}`,
     buttons:['Open ndi.video','Close'],
   }).then(r=>{if(r.response===0)shell.openExternal('https://ndi.video/download/');});
@@ -3678,7 +3694,7 @@ function createCountdownWindow() {
     icon: APP_ICON,
     width: 1060,
     height: 820,
-    title: 'AnchorCast — Timer',
+    title: 'Utterance — Timer',
     backgroundColor: '#0a0a0f',
     autoHideMenuBar: true,
     resizable: true,
@@ -3710,7 +3726,7 @@ function createRegistrationStatusWindow() {
     width: 640, height: reg.registered ? 720 : 820,
     minWidth: 620,
     minHeight: reg.registered ? 680 : 780,
-    title: 'AnchorCast — Registration',
+    title: 'Utterance — Registration',
     backgroundColor: '#0a0a1a',
     resizable: true, show: false, center: true,
     webPreferences: { nodeIntegration:false, contextIsolation:true, preload:path.join(__dirname,'preload.js') },
@@ -3788,7 +3804,7 @@ function buildRegistrationStatusHtml(reg) {
   .oss a:hover{color:#c9a84c}
 </style></head><body>
   <div class="header">
-    <div class="logo">⚓ ANCHORCAST</div>
+    <div class="logo">⚓ UTTERANCE</div>
     <div style="color:#444;font-size:10px;letter-spacing:1.5px;margin-top:2px">LIVE SERMON DISPLAY</div>
   </div>
   <div class="body">
@@ -3822,7 +3838,7 @@ function buildRegistrationStatusHtml(reg) {
     <div class="support-card">
       <div class="support-title">❤ Support this Project</div>
       <div class="support-sub">
-        AnchorCast is built with love for churches everywhere.<br>
+        Utterance is built with love for churches everywhere.<br>
         Donations help keep development going — thank you!
       </div>
       <div class="btn-row">
@@ -3831,7 +3847,7 @@ function buildRegistrationStatusHtml(reg) {
           <span style="font-size:16px">💳</span> Donate via PayPal
         </button>
         <button class="btn-github"
-          onclick="window.electronAPI?.openExternal('https://github.com/anchorcastapp-team/anchorcastapp')">
+          onclick="window.electronAPI?.openExternal('https://github.com/utteranceapp-team/utteranceapp')">
           <span style="font-size:15px">⭐</span> Star on GitHub
         </button>
       </div>
@@ -3839,8 +3855,8 @@ function buildRegistrationStatusHtml(reg) {
 
     <div class="oss">
       Free &amp; Open Source —
-      <a onclick="window.electronAPI?.openExternal('https://github.com/anchorcastapp-team/anchorcastapp')">
-        github.com/anchorcastapp-team/anchorcastapp
+      <a onclick="window.electronAPI?.openExternal('https://github.com/utteranceapp-team/utteranceapp')">
+        github.com/utteranceapp-team/utteranceapp
       </a>
     </div>
 
@@ -3858,7 +3874,7 @@ function showAbout(){
   const win = new BrowserWindow({
     icon: APP_ICON,
     width: 560, height: 980,
-    title: 'About AnchorCast',
+    title: 'About Utterance',
     backgroundColor: '#0a0a1a',
     resizable: false, show: false, center: true,
     parent: mainWindow, modal: false,
@@ -3898,7 +3914,7 @@ function loadSettings(){
 function saveSettings(s){
   s = { ...defaultSettings(), ...s };
   s.transcriptSource = ['deepgram','local','cloud'].includes(s.transcriptSource) ? s.transcriptSource : 'local';
-  s.ndiSourceName = String(s.ndiSourceName || 'AnchorCast').trim() || 'AnchorCast';
+  s.ndiSourceName = String(s.ndiSourceName || 'Utterance').trim() || 'Utterance';
   s.remoteRequireAuth = isRemoteAuthRequired(s.remoteRequireAuth);
   s.remotePin = normalizeRemotePinValue(s.remotePin);
   s.remoteAdminPin = normalizeRemotePinValue(s.remoteAdminPin || s.remotePin);
@@ -3952,7 +3968,7 @@ function defaultSettings(){
     overlayTextOnMediaDim:35,
     hideGetStarted:false,
     geniusApiKey:'',
-    ndiSourceName:'AnchorCast',
+    ndiSourceName:'Utterance',
     httpPort:8080,remoteEnabled:true,ndiEnabled:false,
     remoteRequireAuth:true,
     remotePin:'', remoteAdminPin:'', remoteScripturePin:'', remoteSongsPin:'', remoteMediaPin:'', remoteMonitorPin:'',
@@ -4033,7 +4049,7 @@ function saveCustomThemes(themes){
 ipcMain.handle('open-projection',(_, id)=>{ createProjectionWindow(id); return{success:true}; });
 ipcMain.handle('close-projection',()=>{ if(projectionWindow)projectionWindow.close(); return{success:true}; });
 // ── NDI Engine ────────────────────────────────────────────────────────────────
-// Priority 1: NDI SDK via ndi-addon (AnchorCast appears as NDI source in OBS/vMix)
+// Priority 1: NDI SDK via ndi-addon (Utterance appears as NDI source in OBS/vMix)
 // Priority 2: MJPEG HTTP stream (OBS Browser Source / vMix Web Browser)
 let ndiTimer      = null;
 let ndiStatus     = 'disabled';
@@ -4062,7 +4078,7 @@ function ndiAddonStatus(){
   if(!projectFilesPresent) return { state:'missing', label:'NDI addon files not found' };
   if(!built) return { state:'not-built', label:'NDI addon not compiled — run ndi-addon/build-ndi.bat' };
   const addon = tryLoadNdiAddon();
-  if(addon) return { state:'ready', label:'NDI ready — AnchorCast appears as NDI source' };
+  if(addon) return { state:'ready', label:'NDI ready — Utterance appears as NDI source' };
   return { state:'load-error', label:'NDI addon compiled but failed to load — check NDI Runtime on this PC' };
 }
 
@@ -4095,10 +4111,10 @@ function startMjpegServer(){
     } else {
       const ip = localIp();
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      res.end(`<!DOCTYPE html><html><head><title>AnchorCast Stream</title>
+      res.end(`<!DOCTYPE html><html><head><title>Utterance Stream</title>
 <style>body{background:#000;color:#eee;font-family:sans-serif;padding:20px;margin:0}
 a{color:#4af}img{max-width:100%;border:1px solid #333;margin-top:10px}</style></head>
-<body><h2>&#10022; AnchorCast MJPEG Stream</h2>
+<body><h2>&#10022; Utterance MJPEG Stream</h2>
 <p><b>OBS Browser Source:</b> <code>http://localhost:${NDI_MJPEG_PORT}/stream</code></p>
 <p><b>vMix Web Browser Input:</b> <code>http://${ip}:${NDI_MJPEG_PORT}/stream</code></p>
 <img src="/stream" alt="Live stream"></body></html>`);
@@ -4149,11 +4165,11 @@ function startNdi(){
         W = b.width  || 1920;
         H = b.height || 1080;
       }
-      addon.createSender(currentSettings.ndiSourceName || 'AnchorCast', W, H, 30000, 1000);
+      addon.createSender(currentSettings.ndiSourceName || 'Utterance', W, H, 30000, 1000);
       ndiSdkActive = true;
       ndiStatus = 'running';
       ndiFrameCount = 0;
-      console.log(`[NDI] Official NDI SDK active — "${currentSettings.ndiSourceName || 'AnchorCast'}" at ${W}x${H}`);
+      console.log(`[NDI] Official NDI SDK active — "${currentSettings.ndiSourceName || 'Utterance'}" at ${W}x${H}`);
       notifyNdiStatus();
       startNdiFrameLoop(addon);
       return;
@@ -4215,7 +4231,7 @@ function startNdiFrameLoop(addon){
           ndiSenderW = W; ndiSenderH = H;
           try{
             addon.destroySender();
-            addon.createSender(currentSettings.ndiSourceName || 'AnchorCast', W, H, 30000, 1000);
+            addon.createSender(currentSettings.ndiSourceName || 'Utterance', W, H, 30000, 1000);
             console.log(`[NDI] Sender created ${W}x${H}`);
           } catch(e){ console.warn('[NDI] Resize failed:', e.message); }
         }
@@ -4267,7 +4283,7 @@ function notifyNdiStatus(){
     clientCount: mjpegClients.length,
     addonState:  addonSt.state,
     addonLabel:  addonSt.label,
-    sourceName:  currentSettings.ndiSourceName || 'AnchorCast',
+    sourceName:  currentSettings.ndiSourceName || 'Utterance',
   });
 }
 
@@ -4288,7 +4304,7 @@ ipcMain.handle('ndi-start', async () => {
     vmixUrl: `http://${ip}:${NDI_MJPEG_PORT}/stream`,
     addonState: addonSt.state,
     addonLabel: addonSt.label,
-    sourceName: currentSettings.ndiSourceName || 'AnchorCast',
+    sourceName: currentSettings.ndiSourceName || 'Utterance',
   };
 });
 ipcMain.handle('ndi-stop', () => {
@@ -4309,7 +4325,7 @@ ipcMain.handle('ndi-status', () => {
     clientCount: mjpegClients.length,
     addonState:  addonSt.state,
     addonLabel:  addonSt.label,
-    sourceName:  currentSettings.ndiSourceName || 'AnchorCast',
+    sourceName:  currentSettings.ndiSourceName || 'Utterance',
   };
 });
 
@@ -4685,7 +4701,7 @@ ipcMain.handle('export-adaptive-data', async () => {
   try{
     const result = await dialog.showSaveDialog(mainWindow, {
       title: 'Export Adaptive Data',
-      defaultPath: `anchorcast_adaptive_${Date.now()}.json`,
+      defaultPath: `utterance_adaptive_${Date.now()}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     });
     if (result.canceled || !result.filePath) return { success:false, canceled:true };
@@ -5332,6 +5348,104 @@ ipcMain.handle('load-bible-data', async () => {
   return result;
 });
 
+// Cross-reference data loader
+ipcMain.handle('load-crossrefs', async () => {
+  try {
+    const crossrefsFile = path.join(app.getAppPath(), 'data', 'crossrefs.json');
+    if (fs.existsSync(crossrefsFile)) {
+      const data = JSON.parse(fs.readFileSync(crossrefsFile, 'utf8'));
+      return data.crossrefs || data || {};
+    }
+  } catch (e) { console.warn('[CrossRefs] Load failed:', e.message); }
+  return {};
+});
+
+// Download public domain translation
+ipcMain.handle('download-public-translation', async (event, translationId) => {
+  try {
+    const result = await bibleDownloader.downloadTranslation(
+      translationId, BIBLE_DIR,
+      (progress) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('bible-download-progress', { id: translationId, ...progress });
+        }
+      }
+    );
+    if (mainWindow) {
+      mainWindow.webContents.send('bible-download-complete', { id: translationId, ...result });
+    }
+    return result;
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// List available public domain translations
+ipcMain.handle('list-public-translations', async () => {
+  return bibleDownloader.getAvailableTranslations();
+});
+
+// Settings export
+ipcMain.handle('export-settings', async () => {
+  try {
+    const data = settingsExport.exportSettings(APPDATA_ROOT, { appVersion: app.getVersion() });
+    const exportPath = path.join(app.getPath('temp'), `utterance-settings-${Date.now()}.json`);
+    fs.writeFileSync(exportPath, JSON.stringify(data, null, 2));
+    return { success: true, path: exportPath };
+  } catch (e) { return { success: false, error: e.message }; }
+});
+
+// Settings import
+ipcMain.handle('import-settings', async (event, filePath) => {
+  try {
+    const result = settingsExport.importSettings(filePath, APPDATA_ROOT);
+    if (result.success && mainWindow) {
+      mainWindow.webContents.send('settings-imported');
+    }
+    return result;
+  } catch (e) { return { success: false, warnings: [e.message] }; }
+});
+
+// Multi-monitor: list displays
+ipcMain.handle('get-displays', async () => {
+  return _multiMonitor.getAllDisplays();
+});
+
+// Multi-monitor: set preferred display
+ipcMain.handle('set-preferred-display', async (event, displayId) => {
+  _multiMonitor.setPreferredDisplay(displayId);
+  currentSettings.preferredDisplayId = displayId;
+  try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(currentSettings, null, 2)); } catch(_) {}
+  return { success: true };
+});
+
+// Language manager: get current language and strings
+ipcMain.handle('get-language', async () => {
+  return {
+    current: _languageManager.getLanguage(),
+    supported: _languageManager.getSupportedLanguages(),
+  };
+});
+
+// Language manager: set language
+ipcMain.handle('set-language', async (event, lang) => {
+  return _languageManager.setLanguage(lang);
+});
+
+// Language manager: get UI string
+ipcMain.handle('get-ui-string', async (event, key) => {
+  return _languageManager.t(key);
+});
+
+// Semantic detection: build index
+ipcMain.handle('build-semantic-index', async (event, translation) => {
+  // This runs in the renderer process — send it there
+  if (mainWindow) {
+    mainWindow.webContents.send('build-semantic-index-request', translation || 'KJV');
+  }
+  return { started: true };
+});
+
 // Bible version manager — returns count of verses per installed translation
 ipcMain.handle('get-installed-versions', async () => {
   const result = {};
@@ -5390,7 +5504,7 @@ async function _saveBibleVersionCore(translation, data) {
 
 function _httpsGetBuffer(url, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': 'AnchorCast/1.0' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'Utterance/1.0' } }, (res) => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
         res.resume();
         const nextUrl = new URL(res.headers.location, url).toString();
@@ -5524,7 +5638,7 @@ const BOLLS_TRANSLATION_BASE = 'https://bolls.life/static/translations';
 
 // Auto-flatten any uploaded Bible JSON before import — handles the same
 // flat-list and nested books→chapters→verses formats as the Download Bible
-// feature. Safe to run on already-flattened AnchorCast-format data too
+// feature. Safe to run on already-flattened Utterance-format data too
 // (verified idempotent: {b,c,v,t} in produces the same shape back out).
 ipcMain.handle('bible-flatten-json', async (_, data) => {
   try {
@@ -5582,7 +5696,7 @@ ipcMain.handle('bible-download-translation', async (_, { slug, fullName } = {}) 
     if (!jsonEntry) throw new Error('No JSON file was found inside the downloaded translation package.');
     const rawJson = JSON.parse(zip.readAsText(jsonEntry));
 
-    send('Converting to AnchorCast format...');
+    send('Converting to Utterance format...');
     const flattened = _flattenBibleJson(rawJson, true);
 
     send('Saving...');
@@ -6098,7 +6212,7 @@ ipcMain.handle('run-whisper-setup', async () => {
           startWhisperServer(whisperModel).then(() => {
             mainWindow?.webContents.send('whisper-setup-result', {
               success: true,
-              message: 'Whisper is ready! Restarting AnchorCast...'
+              message: 'Whisper is ready! Restarting Utterance...'
             });
             setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);
           });
@@ -6118,7 +6232,7 @@ ipcMain.handle('run-whisper-setup', async () => {
   // Fallback: no bundled Python — run setup_whisper.bat
   const setupBat = resolveRuntimeResource('setup_whisper.bat');
   if (!fs.existsSync(setupBat)) {
-    return { ok: false, error: 'Python not found and setup_whisper.bat missing. Please reinstall AnchorCast.' };
+    return { ok: false, error: 'Python not found and setup_whisper.bat missing. Please reinstall Utterance.' };
   }
 
   const setupDir = path.dirname(setupBat);
@@ -6128,7 +6242,7 @@ ipcMain.handle('run-whisper-setup', async () => {
   try { fs.unlinkSync(restartFlag); } catch(_) {}
 
   try {
-    const proc = spawn('cmd.exe', ['/c', 'start', 'AnchorCast - Whisper Setup', '/wait', 'cmd.exe', '/c', setupBat], {
+    const proc = spawn('cmd.exe', ['/c', 'start', 'Utterance - Whisper Setup', '/wait', 'cmd.exe', '/c', setupBat], {
       detached: true, shell: false, windowsHide: false,
     });
 
@@ -6141,7 +6255,7 @@ ipcMain.handle('run-whisper-setup', async () => {
         startWhisperServer(whisperModel).then(() => {
           mainWindow?.webContents.send('whisper-setup-result', {
             success: true,
-            message: 'Whisper is ready! Restarting AnchorCast...'
+            message: 'Whisper is ready! Restarting Utterance...'
           });
           // Restart the app after 1.5s so user sees the message
           setTimeout(() => {
@@ -6156,7 +6270,7 @@ ipcMain.handle('run-whisper-setup', async () => {
         mainWindow?.webContents.send('whisper-setup-result', {
           success: false,
           needsWindowsRestart: true,
-          message: 'Visual C++ was installed. Please restart Windows, then AnchorCast will complete setup automatically.'
+          message: 'Visual C++ was installed. Please restart Windows, then Utterance will complete setup automatically.'
         });
       }
     }, 2000);
@@ -6179,7 +6293,7 @@ ipcMain.handle('run-whisper-setup', async () => {
     try { fs.unlinkSync(restartFlag); } catch(_) {}
     console.log('[Whisper] Restart-pending flag found — re-running setup after VC++ install...');
     setTimeout(() => {
-      spawn('cmd.exe', ['/c', 'start', 'AnchorCast - Whisper Setup', '/wait', 'cmd.exe', '/c', setupBat], {
+      spawn('cmd.exe', ['/c', 'start', 'Utterance - Whisper Setup', '/wait', 'cmd.exe', '/c', setupBat], {
         detached: true, shell: false, windowsHide: false,
       });
     }, 3000); // wait for app to fully load first
@@ -6974,7 +7088,7 @@ function _makeSongLibraryBackup(reason = 'manual') {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filePath = path.join(SONG_BACKUP_DIR, `song-library-${reason}-${stamp}.json`);
   fs.writeFileSync(filePath, JSON.stringify({
-    format: 'anchorcast-song-library-backup',
+    format: 'utterance-song-library-backup',
     reason,
     createdAt: Date.now(),
     count: songs.length,
@@ -7718,7 +7832,7 @@ function _collectAppDataBackupEntries() {
   const entries = [];
   const pushIfExists = (relPath) => {
     const abs = path.join(DATA_DIR, relPath);
-    try { if (fs.existsSync(abs)) entries.push({ abs, rel: path.join('AnchorCastData', relPath) }); } catch (_) {}
+    try { if (fs.existsSync(abs)) entries.push({ abs, rel: path.join('UtteranceData', relPath) }); } catch (_) {}
   };
 
   [
@@ -7744,7 +7858,7 @@ function _collectAppDataBackupEntries() {
         if (stat.isDirectory()) walk(abs);
         else {
           const rel = path.relative(DATA_DIR, abs);
-          entries.push({ abs, rel: path.join('AnchorCastData', rel) });
+          entries.push({ abs, rel: path.join('UtteranceData', rel) });
         }
       }
     };
@@ -7871,7 +7985,7 @@ print(dest)
 }
 
 function _restoreAppDataFromExtractedFolder(sourceRoot) {
-  const rootDir = fs.existsSync(path.join(sourceRoot, 'AnchorCastData')) ? path.join(sourceRoot, 'AnchorCastData') : sourceRoot;
+  const rootDir = fs.existsSync(path.join(sourceRoot, 'UtteranceData')) ? path.join(sourceRoot, 'UtteranceData') : sourceRoot;
   const copyTree = (srcDir, dstDir) => {
     if (!fs.existsSync(srcDir)) return;
     fs.mkdirSync(dstDir, { recursive: true });
@@ -7964,14 +8078,14 @@ ipcMain.handle('import-smart-song-source', async (_, { mode = 'merge' } = {}) =>
 ipcMain.handle('backup-full-appdata', async () => {
   try {
     const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'Backup AnchorCast Data',
-      defaultPath: path.join(app.getPath('documents'), `AnchorCastData-Backup-${new Date().toISOString().slice(0,10)}.zip`),
+      title: 'Backup Utterance Data',
+      defaultPath: path.join(app.getPath('documents'), `UtteranceData-Backup-${new Date().toISOString().slice(0,10)}.zip`),
       filters: [{ name: 'ZIP Backup', extensions: ['zip'] }],
       buttonLabel: 'Create Backup',
     });
     if (result.canceled || !result.filePath) return { success: false, canceled: true };
     const entries = _collectAppDataBackupEntries();
-    if (!entries.length) return { success: false, error: 'No AnchorCast data found to back up.' };
+    if (!entries.length) return { success: false, error: 'No Utterance data found to back up.' };
     _zipDirectorySync(entries, result.filePath);
     return { success: true, path: result.filePath, count: entries.length };
   } catch (e) {
@@ -7982,14 +8096,14 @@ ipcMain.handle('backup-full-appdata', async () => {
 ipcMain.handle('restore-full-appdata', async () => {
   try {
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Restore AnchorCast Data Backup',
+      title: 'Restore Utterance Data Backup',
       properties: ['openFile'],
       filters: [{ name: 'ZIP Backup', extensions: ['zip'] }],
       buttonLabel: 'Restore Backup',
     });
     if (result.canceled || !result.filePaths?.length) return { success: false, canceled: true };
     const zipPath = result.filePaths[0];
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anchorcast-restore-'));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'utterance-restore-'));
     const ok = _extractZipWithPython(zipPath, tempDir);
     if (!ok) return { success: false, error: 'Could not extract ZIP backup. Python zip support was not available.' };
     _restoreAppDataFromExtractedFolder(tempDir);
@@ -8041,7 +8155,7 @@ ipcMain.handle('genius-search', async (_, { query }) => {
     const url = `https://api.genius.com/search?q=${encodeURIComponent(query.trim())}&per_page=10`;
     const data = await new Promise((resolve, reject) => {
       const req = https.get(url, {
-        headers: { 'Authorization': `Bearer ${GENIUS_API_KEY}`, 'User-Agent': 'AnchorCast/1.0' }
+        headers: { 'Authorization': `Bearer ${GENIUS_API_KEY}`, 'User-Agent': 'Utterance/1.0' }
       }, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
@@ -8122,7 +8236,7 @@ ipcMain.handle('lrclib-search', async (_, { query, artist }) => {
     for (const url of searches) {
       const data = await new Promise((resolve, reject) => {
         const req = https.get(url, {
-          headers: { 'User-Agent': 'AnchorCast/1.0 (https://github.com/anchorcastapp-team/anchorcastapp)', 'Accept': 'application/json' }
+          headers: { 'User-Agent': 'Utterance/1.0 (https://github.com/utteranceapp-team/utteranceapp)', 'Accept': 'application/json' }
         }, (res) => {
           let body = '';
           res.on('data', chunk => body += chunk);
@@ -8164,7 +8278,7 @@ ipcMain.handle('lrclib-fetch-lyrics', async (_, { id }) => {
     const url = `https://lrclib.net/api/get/${id}`;
     const data = await new Promise((resolve, reject) => {
       const req = https.get(url, {
-        headers: { 'User-Agent': 'AnchorCast/1.0 (https://github.com/anchorcastapp-team/anchorcastapp)', 'Accept': 'application/json' }
+        headers: { 'User-Agent': 'Utterance/1.0 (https://github.com/utteranceapp-team/utteranceapp)', 'Accept': 'application/json' }
       }, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
@@ -8281,17 +8395,17 @@ ipcMain.handle('export-songs', async (_, { mode = 'easyworship-txt' } = {}) => {
     if (mode === 'json') {
       const result = await dialog.showSaveDialog(mainWindow, {
         title: 'Export Song Library',
-        defaultPath: path.join(app.getPath('documents'), 'AnchorCast Songs.json'),
+        defaultPath: path.join(app.getPath('documents'), 'Utterance Songs.json'),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (result.canceled || !result.filePath) return { success: false, canceled: true };
-      fs.writeFileSync(result.filePath, JSON.stringify({ format: 'anchorcast-song-library', exportedAt: Date.now(), songs }, null, 2));
+      fs.writeFileSync(result.filePath, JSON.stringify({ format: 'utterance-song-library', exportedAt: Date.now(), songs }, null, 2));
       return { success: true, path: result.filePath, count: songs.length };
     }
 
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose Export Folder',
-      defaultPath: path.join(app.getPath('documents'), 'AnchorCast Song Export'),
+      defaultPath: path.join(app.getPath('documents'), 'Utterance Song Export'),
       properties: ['openDirectory', 'createDirectory'],
       buttonLabel: 'Export Here',
     });
@@ -8743,7 +8857,7 @@ ipcMain.handle('import-presentation', async (_, { filePath }) => {
         // Write script to a temp file and use -File with positional -Args
         // -Command + param() does NOT receive -Args; -File does.
         const os = require('os');
-        const tmpScript = path.join(os.tmpdir(), `anchorcast_ppt_${Date.now()}.ps1`);
+        const tmpScript = path.join(os.tmpdir(), `utterance_ppt_${Date.now()}.ps1`);
         const psLines = [
           'param($src, $outDir)',
           "$ErrorActionPreference = 'Stop'",
@@ -9127,7 +9241,7 @@ ipcMain.handle('save-schedule-as', async (_, { items, currentName }) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     title:       'Save Schedule As',
     defaultPath: path.join(SCHEDULES_DIR, (currentName || 'My Service') + '.acsch'),
-    filters:     [{ name: 'AnchorCast Schedule', extensions: ['acsch','json'] }],
+    filters:     [{ name: 'Utterance Schedule', extensions: ['acsch','json'] }],
     buttonLabel: 'Save Schedule',
   });
   if (result.canceled || !result.filePath) return { canceled: true };
@@ -9145,7 +9259,7 @@ ipcMain.handle('open-schedule-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title:       'Open Schedule',
     defaultPath: SCHEDULES_DIR,
-    filters:     [{ name: 'AnchorCast Schedule', extensions: ['acsch','json'] }],
+    filters:     [{ name: 'Utterance Schedule', extensions: ['acsch','json'] }],
     properties:  ['openFile'],
     buttonLabel: 'Open Schedule',
   });
@@ -9438,10 +9552,10 @@ ipcMain.handle('open-license-window', () => {
 ipcMain.handle('import-license-file', async () => {
   try {
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: 'Select AnchorCast license file',
+      title: 'Select Utterance license file',
       properties: ['openFile'],
       filters: [
-        { name: 'AnchorCast License Files', extensions: ['json', 'license', 'anchorcast-license'] },
+        { name: 'Utterance License Files', extensions: ['json', 'license', 'utterance-license'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });

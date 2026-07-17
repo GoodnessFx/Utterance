@@ -1,4 +1,4 @@
-// AnchorCast — Main Application
+// Utterance — Main Application
 // Renderer process: UI logic, state, event handling
 
 'use strict';
@@ -186,7 +186,7 @@ function _applyImportedLicenseFileData(r) {
 
     if (res) {
       res.style.color = '#2ecc71';
-      res.textContent = 'License file loaded. Review the fields and click Register AnchorCast.';
+      res.textContent = 'License file loaded. Review the fields and click Register Utterance.';
     }
   } catch (_) {}
 }
@@ -261,7 +261,7 @@ async function init() {
 
   setTimeout(() => maybeShowGetStarted(), 600);
 
-  console.log('[AnchorCast] Ready');
+  console.log('[Utterance] Ready');
 }
 
 
@@ -1011,7 +1011,7 @@ function _showWhisperSetupBanner(data) {
     icon   = '⚠️';
     title  = 'Visual C++ Runtime missing';
     detail = 'The AI transcription engine requires the Microsoft Visual C++ 2015-2022 Redistributable. ' +
-             'Please reinstall AnchorCast — it will install VC++ automatically. ' +
+             'Please reinstall Utterance — it will install VC++ automatically. ' +
              'Or download it manually from: aka.ms/vs/17/release/vc_redist.x64.exe';
     btnLabel = 'Download VC++';
   } else if (reason === 'no_source_available') {
@@ -1319,7 +1319,7 @@ function setupElectronEvents() {
       <div style="background:#1e293b;border:1px solid #334155;border-radius:14px;
         padding:28px 32px;max-width:420px;width:90vw;box-shadow:0 24px 64px rgba(0,0,0,.6)">
         <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:8px">
-          Close AnchorCast?
+          Close Utterance?
         </div>
         <div style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:24px">
           You have a transcript with <strong style="color:#e2e8f0">${lines} lines</strong>.
@@ -1343,7 +1343,7 @@ function setupElectronEvents() {
             background:transparent;border:1px solid #334155;color:#64748b;
             border-radius:8px;padding:10px 16px;
             font-size:13px;cursor:pointer;text-align:left">
-            ← Stay in AnchorCast
+            ← Stay in Utterance
           </button>
         </div>
       </div>
@@ -1387,7 +1387,7 @@ function setupElectronEvents() {
         <div style="flex:1">
           <div style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:3px">Windows restart required</div>
           <div style="font-size:12px;color:#94a3b8;line-height:1.4">
-            Visual C++ was installed. Restart Windows, then reopen AnchorCast — setup will complete automatically.
+            Visual C++ was installed. Restart Windows, then reopen Utterance — setup will complete automatically.
           </div>
         </div>
         <button onclick="this.parentElement.remove()" style="
@@ -1863,7 +1863,7 @@ async function openRemotePopover() {
   pop.querySelector('#remoteShareBtn')?.addEventListener('click', () => {
     const currentUrl = pop.querySelector('#remoteUrlText')?.textContent || url;
     if (!currentUrl || currentUrl === '—') return;
-    const msg = `📱 AnchorCast Remote Control\n\nOpen this link on your phone or tablet to control the worship presentation:\n\n${currentUrl}\n\n(Make sure you're connected to the same WiFi network)`;
+    const msg = `📱 Utterance Remote Control\n\nOpen this link on your phone or tablet to control the worship presentation:\n\n${currentUrl}\n\n(Make sure you're connected to the same WiFi network)`;
     _copyToClipboardAnyContext(msg, '📋 Shareable message copied!', () => {
       const btn = pop.querySelector('#remoteShareBtn');
       if (btn) { btn.textContent = '✓ Copied! Paste in WhatsApp or SMS'; setTimeout(() => { btn.innerHTML = '📋 Copy Link to Share via WhatsApp / SMS'; }, 2000); }
@@ -4911,7 +4911,7 @@ function _makeQueueItemDraggable(el, idx) {
   el.addEventListener('drop', e => {
     e.preventDefault();
     el.classList.remove('drag-over');
-    if (e.dataTransfer.types.includes('application/anchorcast-item')) return;
+    if (e.dataTransfer.types.includes('application/utterance-item')) return;
     const targetIdx = parseInt(el.dataset.idx);
     if (_dragSrcIdx === null || _dragSrcIdx === targetIdx) return;
     // Reorder
@@ -4934,7 +4934,7 @@ function _makeQueueItemDraggable(el, idx) {
 
 function _makeQueueDropTarget(el, idx) {
   el.addEventListener('dragover', e => {
-    if (!e.dataTransfer.types.includes('application/anchorcast-item')) return;
+    if (!e.dataTransfer.types.includes('application/utterance-item')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     document.querySelectorAll('.queue-item, .queue-section').forEach(x => x.classList.remove('drag-over'));
@@ -4942,7 +4942,7 @@ function _makeQueueDropTarget(el, idx) {
   });
   el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
   el.addEventListener('drop', e => {
-    const raw = e.dataTransfer.getData('application/anchorcast-item');
+    const raw = e.dataTransfer.getData('application/utterance-item');
     if (!raw) return;
     e.preventDefault();
     e.stopPropagation();
@@ -4978,13 +4978,13 @@ function _makeQueueBodyDropTarget() {
   const body = document.getElementById('queueBody');
   if (!body) return;
   body.addEventListener('dragover', e => {
-    if (!e.dataTransfer.types.includes('application/anchorcast-item')) return;
+    if (!e.dataTransfer.types.includes('application/utterance-item')) return;
     if (e.target.closest('.queue-item, .queue-section')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   });
   body.addEventListener('drop', e => {
-    const raw = e.dataTransfer.getData('application/anchorcast-item');
+    const raw = e.dataTransfer.getData('application/utterance-item');
     if (!raw) return;
     if (e.target.closest('.queue-item, .queue-section')) return;
     e.preventDefault();
@@ -5595,7 +5595,7 @@ function _showUpdateBanner(version) {
   const banner = document.createElement('div');
   banner.id = 'updateBanner';
   banner.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2035;border:1px solid #d4af37;border-radius:12px;padding:14px 20px;z-index:9999;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:520px;`;
-  banner.innerHTML = `<div style="font-size:20px">🆕</div><div style="flex:1"><div style="font-weight:700;color:#d4af37;font-size:13px">Update Available — v${version}</div><div id="updateProgressLabel" style="font-size:11px;color:#9aa4c7;margin-top:2px">A new version of AnchorCast is ready.</div><div style="background:#0d1422;border-radius:4px;height:4px;margin-top:6px;overflow:hidden;display:none" id="updateProgressWrap"><div id="updateProgressBar" style="height:100%;background:#d4af37;width:0%;transition:width .3s"></div></div></div><button id="updateDownloadBtn" onclick="_startUpdateDownload()" style="background:#d4af37;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">⬇ Download</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
+  banner.innerHTML = `<div style="font-size:20px">🆕</div><div style="flex:1"><div style="font-weight:700;color:#d4af37;font-size:13px">Update Available — v${version}</div><div id="updateProgressLabel" style="font-size:11px;color:#9aa4c7;margin-top:2px">A new version of Utterance is ready.</div><div style="background:#0d1422;border-radius:4px;height:4px;margin-top:6px;overflow:hidden;display:none" id="updateProgressWrap"><div id="updateProgressBar" style="height:100%;background:#d4af37;width:0%;transition:width .3s"></div></div></div><button id="updateDownloadBtn" onclick="_startUpdateDownload()" style="background:#d4af37;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">⬇ Download</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
   document.body.appendChild(banner);
 }
 
@@ -5615,7 +5615,7 @@ function _showUpdateReadyBanner(version) {
   const banner = document.createElement('div');
   banner.id = 'updateBanner';
   banner.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2035;border:1px solid #2ecc71;border-radius:12px;padding:14px 20px;z-index:9999;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:340px;max-width:500px;`;
-  banner.innerHTML = `<div style="font-size:20px">✅</div><div style="flex:1"><div style="font-weight:700;color:#2ecc71;font-size:13px">v${version} Ready to Install</div><div style="font-size:11px;color:#9aa4c7;margin-top:2px">Restart AnchorCast to apply the update.</div></div><button onclick="window.electronAPI?.updaterInstallNow?.()" style="background:#2ecc71;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">Restart & Install</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
+  banner.innerHTML = `<div style="font-size:20px">✅</div><div style="flex:1"><div style="font-weight:700;color:#2ecc71;font-size:13px">v${version} Ready to Install</div><div style="font-size:11px;color:#9aa4c7;margin-top:2px">Restart Utterance to apply the update.</div></div><button onclick="window.electronAPI?.updaterInstallNow?.()" style="background:#2ecc71;border:none;color:#000;font-weight:700;font-size:11px;padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap">Restart & Install</button><button onclick="document.getElementById('updateBanner').remove()" style="background:transparent;border:none;color:#9aa4c7;cursor:pointer;font-size:16px;padding:4px">✕</button>`;
   document.body.appendChild(banner);
 }
 
@@ -6023,7 +6023,7 @@ function _songListDragHandler(e) {
   const rawId = item.dataset.songid;
   const song = (State.songs || []).find(s => String(s.id) === rawId);
   if (!song) return;
-  e.dataTransfer.setData('application/anchorcast-item', JSON.stringify({
+  e.dataTransfer.setData('application/utterance-item', JSON.stringify({
     type: 'song', songId: song.id, songTitle: song.title, author: song.author || ''
   }));
   e.dataTransfer.effectAllowed = 'copy';
@@ -6845,7 +6845,7 @@ function renderMediaList(filter = '') {
 
     row.draggable = true;
     row.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('application/anchorcast-item', JSON.stringify({
+      e.dataTransfer.setData('application/utterance-item', JSON.stringify({
         type: 'media', mediaId: item.id, name: item.name, mediaType: item.type
       }));
       e.dataTransfer.effectAllowed = 'copy';
@@ -7181,7 +7181,7 @@ async function addMediaFiles(files) {
 
   if (rejected.length > 0) {
     const lines = rejected.map(r => {
-      if (r.noPath) return `• ${r.name}\n  ↳ AnchorCast could not read the source file path for this item.`;
+      if (r.noPath) return `• ${r.name}\n  ↳ Utterance could not read the source file path for this item.`;
       const suggest = FORMAT_SUGGESTIONS[r.ext] || 'MP4 or MP3';
       return `• ${r.name}\n  ↳ ${r.ext.toUpperCase()} is not supported. Please convert to ${suggest} first.`;
     }).join('\n\n');
@@ -8461,7 +8461,7 @@ async function _getLocalPresentations() {
       _createdPresCache = await window.electronAPI.getCreatedPresentations() || [];
     } else {
       // Web fallback
-      _createdPresCache = JSON.parse(localStorage.getItem('anchorcast_presentations') || '[]');
+      _createdPresCache = JSON.parse(localStorage.getItem('utterance_presentations') || '[]');
     }
   } catch(e) { _createdPresCache = []; }
   return _createdPresCache;
@@ -8474,7 +8474,7 @@ async function _saveLocalPresentation(pres) {
   if (window.electronAPI?.saveCreatedPresentations) {
     await window.electronAPI.saveCreatedPresentations(list);
   } else {
-    localStorage.setItem('anchorcast_presentations', JSON.stringify(list));
+    localStorage.setItem('utterance_presentations', JSON.stringify(list));
   }
 }
 
@@ -8484,7 +8484,7 @@ async function _deleteLocalPresentation(id) {
   if (window.electronAPI?.saveCreatedPresentations) {
     await window.electronAPI.saveCreatedPresentations(list);
   } else {
-    localStorage.setItem('anchorcast_presentations', JSON.stringify(list));
+    localStorage.setItem('utterance_presentations', JSON.stringify(list));
   }
 }
 
@@ -8748,7 +8748,7 @@ function renderSearchResults() {
     if (!isPlaceholder) {
       div.draggable = true;
       div.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('application/anchorcast-item', JSON.stringify({
+        e.dataTransfer.setData('application/utterance-item', JSON.stringify({
           type: 'verse', book: State.currentBook, chapter: State.currentChapter, verse, ref
         }));
         e.dataTransfer.effectAllowed = 'copy';
@@ -9514,7 +9514,7 @@ async function openProjection() {
     toast('⛶ Projection window opened');
     setTimeout(() => _syncCurrentProjection(), 500);
   } else {
-    window.open('/projection.html', 'anchorcast-projection', 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+    window.open('/projection.html', 'utterance-projection', 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
     State.isProjectionOpen = true;
     toast('⛶ Projection window opened');
     setTimeout(() => _syncCurrentProjection(), 500);
@@ -9679,7 +9679,7 @@ async function generateSermonNotes() {
     } else if (msg.includes('529') || msg.includes('overloaded')) {
       output.textContent = '⚠ Claude API is temporarily overloaded. Please try again in a moment.';
     } else if (msg.includes('model') || msg.includes('not_found') || msg.includes('404')) {
-      output.textContent = '⚠ The AI model is unavailable on your API plan. This usually means the model was updated — please update AnchorCast to the latest version.';
+      output.textContent = '⚠ The AI model is unavailable on your API plan. This usually means the model was updated — please update Utterance to the latest version.';
     } else {
       output.textContent = `⚠ Error generating notes: ${msg}`;
     }
@@ -10035,10 +10035,10 @@ function updateNdiPanel(info) {
   if (isActive) {
     if (ndiSdkActive) {
       statusLabel.textContent = '🟢 NDI Output Running';
-      methodLabel.textContent = 'In OBS/vMix: look for "AnchorCast" in NDI Sources';
+      methodLabel.textContent = 'In OBS/vMix: look for "Utterance" in NDI Sources';
       if (activeInfo) {
         activeInfo.querySelector('div').innerHTML =
-          '✓ <strong>NDI active</strong> — AnchorCast appears as an NDI source in OBS, vMix, Wirecast etc.';
+          '✓ <strong>NDI active</strong> — Utterance appears as an NDI source in OBS, vMix, Wirecast etc.';
       }
     } else {
       statusLabel.textContent = `🟡 Live Stream Running — MJPEG (${clientCount || 0} receiver(s))`;
@@ -10077,7 +10077,7 @@ function showAboutModal() {
   overlay.innerHTML = `
     <div style="background:#1a1a2e;border:1px solid #333;border-radius:14px;padding:36px 40px;max-width:440px;width:90%;color:#e0e0e0;font-family:inherit;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6);position:relative;">
       <div style="font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:6px;">&#10022;</div>
-      <h2 style="margin:0 0 4px;font-size:24px;color:#fff;font-weight:700;">AnchorCast</h2>
+      <h2 style="margin:0 0 4px;font-size:24px;color:#fff;font-weight:700;">Utterance</h2>
       <div style="font-size:13px;color:#888;margin-bottom:18px;">v1.2.0</div>
       <p style="font-size:14px;line-height:1.7;color:#bbb;margin:0 0 18px;">
         AI-powered worship presentation, live sermon transcription &amp; Bible verse display for churches.
@@ -10097,16 +10097,16 @@ function showAboutModal() {
       <div style="border-top:1px solid #333;padding-top:16px;margin-bottom:14px;margin-top:6px;">
         <div style="font-size:12px;color:#888;margin-bottom:10px;">Links</div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
-          <a href="https://www.anchorcastapp.com" target="_blank" rel="noopener"
+          <a href="https://www.utteranceapp.com" target="_blank" rel="noopener"
              style="display:inline-flex;align-items:center;gap:6px;color:#c9a84c;font-size:13px;text-decoration:none;">
-            🌐 anchorcastapp.com
+            🌐 utteranceapp.com
           </a>
-          <a href="https://github.com/anchorcastapp-team/anchorcastapp" target="_blank" rel="noopener"
+          <a href="https://github.com/utteranceapp-team/utteranceapp" target="_blank" rel="noopener"
              style="display:inline-flex;align-items:center;gap:6px;color:#7aa2f7;font-size:13px;text-decoration:none;">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             GitHub Repository
           </a>
-          <a href="https://github.com/anchorcastapp-team/anchorcastapp/wiki" target="_blank" rel="noopener"
+          <a href="https://github.com/utteranceapp-team/utteranceapp/wiki" target="_blank" rel="noopener"
              style="display:inline-flex;align-items:center;gap:6px;color:#7aa2f7;font-size:13px;text-decoration:none;">
             📚 Documentation Wiki
           </a>
@@ -10114,7 +10114,7 @@ function showAboutModal() {
              style="display:inline-flex;align-items:center;gap:6px;color:#888;font-size:13px;text-decoration:none;">
             ✉ info@kaitamtech.com
           </a>
-          <a href="https://github.com/anchorcastapp-team/anchorcastapp/issues" target="_blank" rel="noopener"
+          <a href="https://github.com/utteranceapp-team/utteranceapp/issues" target="_blank" rel="noopener"
              style="display:inline-flex;align-items:center;gap:6px;color:#888;font-size:13px;text-decoration:none;">
             🐛 Report an Issue
           </a>
@@ -10135,10 +10135,10 @@ const _GS_STEPS = [
   {
     title: 'Welcome',
     icon: '✝', iconColor: '#c9a84c',
-    heading: 'Welcome to AnchorCast',
-    body: `AnchorCast listens to your preacher in real-time, automatically detects Bible references, and displays them on your projection screen.<br><br>
+    heading: 'Welcome to Utterance',
+    body: `Utterance listens to your preacher in real-time, automatically detects Bible references, and displays them on your projection screen.<br><br>
       Use this guide to get set up in a few minutes. You can revisit it anytime from <strong>Help → Get Started / Welcome</strong>.`,
-    tip: 'AnchorCast works offline with local Whisper, or online with Deepgram for best accuracy.',
+    tip: 'Utterance works offline with local Whisper, or online with Deepgram for best accuracy.',
     buttons: [
       { id: '_gsBtnGuide', label: '📖 Get Started — Step by Step Guide', style: 'primary', action: 'next' },
       { id: '_gsBtnDocs',  label: '📄 Open Full Documentation',          style: 'secondary', action: 'docs' },
@@ -10163,13 +10163,13 @@ const _GS_STEPS = [
       2. Paste or import a JSON Bible file<br>
       3. The translation appears instantly in the search bar<br><br>
       Switch translations at any time using the <strong>KJV</strong> dropdown in the top-right toolbar.`,
-    tip: 'Supported formats: OSIS JSON, AnchorCast Bible JSON.',
+    tip: 'Supported formats: OSIS JSON, Utterance Bible JSON.',
   },
   {
     title: 'Audio & Transcription',
     icon: '🎤', iconColor: '#e74c3c',
     heading: 'Set Up Live Transcription',
-    body: `AnchorCast transcribes the preacher's voice in real-time to auto-detect Bible verses.<br><br>
+    body: `Utterance transcribes the preacher's voice in real-time to auto-detect Bible verses.<br><br>
       1. Go to <strong>Settings → Audio & Transcription</strong><br>
       2. Select your microphone or audio interface<br>
       3. Choose <strong>Online</strong> (Deepgram — best) or <strong>Offline</strong> (local Whisper)<br>
@@ -10241,7 +10241,7 @@ function _gsShowSimple() {
       max-width:500px;width:92%;color:#e0e0e0;font-family:inherit;text-align:center;
       box-shadow:0 8px 48px rgba(0,0,0,.65);">
       <div style="font-size:36px;margin-bottom:8px;color:#c9a84c">✝</div>
-      <h2 style="margin:0 0 4px;font-size:24px;color:#fff;font-weight:700">Welcome to AnchorCast</h2>
+      <h2 style="margin:0 0 4px;font-size:24px;color:#fff;font-weight:700">Welcome to Utterance</h2>
       <div style="font-size:12px;color:#666;margin-bottom:22px;letter-spacing:.04em">AI-powered worship presentation for churches</div>
       <div style="text-align:left;margin-bottom:22px;display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;align-items:flex-start;gap:10px">
@@ -10367,7 +10367,7 @@ function _gsRender() {
     </style>
     <div id="_gsW">
       <div id="_gsS">
-        <div id="_gsSL">✝ AnchorCast</div>
+        <div id="_gsSL">✝ Utterance</div>
         ${_GS_STEPS.map((s,i) => `
           <div class="_gi ${i===_gsStep?'active':i<_gsStep?'done':''}" data-i="${i}">
             <span class="_gm">${i<_gsStep?'✓':i===_gsStep?'›':''}</span>

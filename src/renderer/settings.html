@@ -209,13 +209,22 @@
       <div class="sidebar-item" data-section="alerts" onclick="setSection(this,'alerts')">
         <span class="sidebar-icon">🔔</span> Alerts
       </div>
+      <div class="sidebar-item" data-section="language" onclick="setSection(this,'language')">
+        <span class="sidebar-icon">🌍</span> Language
+      </div>
+      <div class="sidebar-item" data-section="displays" onclick="setSection(this,'displays')">
+        <span class="sidebar-icon">🖥</span> Display
+      </div>
+      <div class="sidebar-item" data-section="backup" onclick="setSection(this,'backup')">
+        <span class="sidebar-icon">💾</span> Backup
+      </div>
     </div>
     <!-- Preview thumbnail -->
     <div class="sidebar-preview">
       <div class="preview-thumb" id="sidebarPreview">
         <div style="font-size:9px;color:var(--dim);text-align:center;padding:8px">Live preview</div>
       </div>
-      <div class="preview-label" id="versionInfo">AnchorCast v1.VERSION</div>
+      <div class="preview-label" id="versionInfo">Utterance v1.VERSION</div>
     </div>
   </div>
 
@@ -328,7 +337,7 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Export Library</label>
-            <button class="btn-save" type="button" id="btnExportJson" style="width:100%;padding:10px 14px" onclick="exportSongsLibrary('json')">Export AnchorCast JSON</button>
+            <button class="btn-save" type="button" id="btnExportJson" style="width:100%;padding:10px 14px" onclick="exportSongsLibrary('json')">Export Utterance JSON</button>
             <div class="form-hint">Use this to move your full song library to another computer.</div>
           </div>
           <div class="form-group">
@@ -1610,13 +1619,166 @@ YOUR</textarea>
         </div>
       </div>
 
+      <!-- ════════════════════════════════════════════════
+           LANGUAGE — Interface language & transcription
+      ════════════════════════════════════════════════ -->
+      <div class="pane" id="pane-language-general">
+        <div class="section-title">Interface Language</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">App Language</label>
+            <select class="form-select" id="uiLanguage">
+              <option value="en" selected>English</option>
+              <option value="es">Espanol</option>
+              <option value="fr">Francais</option>
+              <option value="de">Deutsch</option>
+              <option value="pt">Portugues</option>
+              <option value="zh">Chinese</option>
+              <option value="ja">Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="ar">Arabic</option>
+              <option value="hi">Hindi</option>
+              <option value="ru">Russian</option>
+              <option value="it">Italian</option>
+            </select>
+            <div class="check-sub">Changes the interface text language. Does not affect Bible translation.</div>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:24px">Transcription Language</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Speech Recognition Language</label>
+            <select class="form-select" id="transcriptLanguage">
+              <option value="auto" selected>Auto-detect</option>
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="pt">Portuguese</option>
+              <option value="zh">Chinese</option>
+              <option value="ja">Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="ar">Arabic</option>
+              <option value="hi">Hindi</option>
+              <option value="ru">Russian</option>
+            </select>
+            <div class="check-sub">Whisper will use this language for speech-to-text transcription.</div>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:24px">Custom Translations</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="check-group">
+              <input type="checkbox" id="downloadAsv" onchange="handleDownloadTranslation('ASV')">
+              <div>
+                <div class="check-label">American Standard Version (ASV)</div>
+                <div class="check-sub">Classic 1901 public domain translation. Downloads ~2.5 MB on first use.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="check-group">
+              <input type="checkbox" id="downloadWeb" onchange="handleDownloadTranslation('WEB')">
+              <div>
+                <div class="check-label">World English Bible (WEB)</div>
+                <div class="check-sub">Modern English public domain translation. Downloads ~2.5 MB on first use.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="check-group">
+              <input type="checkbox" id="downloadYlt" onchange="handleDownloadTranslation('YLT')">
+              <div>
+                <div class="check-label">Young's Literal Translation (YLT)</div>
+                <div class="check-sub">Highly literal 1862 translation. Downloads ~2.5 MB on first use.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════
+           DISPLAY — Multi-monitor selection
+      ════════════════════════════════════════════════ -->
+      <div class="pane" id="pane-displays-general">
+        <div class="section-title">Projection Display</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Target Display</label>
+            <select class="form-select" id="displayTarget">
+              <option value="auto" selected>Auto (External or Primary)</option>
+            </select>
+            <div class="check-sub">Select which display shows the fullscreen projection. Detected displays update automatically.</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="check-group">
+              <input type="checkbox" id="simpleMode">
+              <div>
+                <div class="check-label">Simple Operator Mode</div>
+                <div class="check-sub">Shows a simplified dashboard with only essential controls: start/stop, verse display, and settings. Ideal for non-technical operators.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:24px">NDI Output</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">NDI Source Name</label>
+            <input type="text" class="form-input" id="ndiSourceName" value="Utterance" placeholder="Utterance">
+            <div class="check-sub">Name that appears in OBS/vMix NDI source list.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════
+           BACKUP — Export/Import settings
+      ════════════════════════════════════════════════ -->
+      <div class="pane" id="pane-backup-general">
+        <div class="section-title">Settings Backup</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;line-height:1.7">
+          Export your settings to share between machines or keep as a backup.
+          PINs and API keys are NOT included in exports for security.
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <button class="btn-save" onclick="handleExportSettings()" style="width:100%;padding:12px">
+              📤 Export Settings to File
+            </button>
+            <div class="check-sub">Saves translation, language, theme, and learned phrases to a JSON file.</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <button class="btn-save" onclick="handleImportSettings()" style="width:100%;padding:12px;background:rgba(100,100,150,.15);border-color:rgba(100,100,150,.3);color:var(--text)">
+              📥 Import Settings from File
+            </button>
+            <div class="check-sub">Restore settings from a previously exported file. PINs must be re-entered.</div>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:24px">Semantics Index</div>
+        <div class="form-row">
+          <div class="form-group">
+            <button class="btn-save" onclick="handleBuildSemanticIndex()" style="width:100%;padding:12px;background:rgba(50,150,50,.15);border-color:rgba(50,150,50,.3);color:#8f8">
+              🧠 Build Semantic Verse Index
+            </button>
+            <div class="check-sub">Creates local embeddings for all loaded verses to detect paraphrased scripture references. Takes 5-15 minutes on first run. Runs offline using a local ONNX model.</div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /content-body -->
   </div><!-- /content -->
 </div><!-- /layout -->
 
 <!-- Bottom bar -->
 <div class="bottom-bar">
-  <div class="version" id="versionInfo">AnchorCast v1.VERSION</div>
+  <div class="version" id="versionInfo">Utterance v1.VERSION</div>
   <div class="bottom-sp"></div>
   <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
   <button class="btn-save" onclick="saveSettings()">Save Settings</button>
@@ -1641,6 +1803,9 @@ const SECTION_LABELS = {
   main: 'Main Output', song: 'Songs', scripture: 'Scripture',
   pres: 'Presentations', audio: 'Audio & AI', network: 'Network', bible: 'Bible Versions',
   alerts: 'Alerts',
+  language: 'Language',
+  displays: 'Display',
+  backup: 'Backup',
 };
 
 let activeSection = 'main', activeTab = 'general';
@@ -1656,6 +1821,8 @@ function setSection(el, section) {
   if (section === 'bible') loadBvmGrid();
   if (section === 'network') loadRemoteStatus();
   if (section === 'audio') loadAdaptiveLearningPane();
+  if (section === 'language') loadLanguageSettings();
+  if (section === 'displays') loadDisplaySettings();
 
 }
 
@@ -2716,6 +2883,12 @@ async function saveSettings() {
       songCapitalizeWordList: (document.getElementById('songCapitalizeWordList')?.value || '').split('\n').map(w => w.trim()).filter(Boolean),
       adaptiveEnabled:      document.getElementById('adaptiveEnabled')?.checked ?? true,
       adaptiveLearningEnabled: document.getElementById('adaptiveLearningEnabled')?.checked ?? true,
+      // Utterance — New settings
+      primaryLanguage:      document.getElementById('uiLanguage')?.value || 'en',
+      transcriptLanguage:   document.getElementById('transcriptLanguage')?.value || 'auto',
+      displayTarget:        document.getElementById('displayTarget')?.value || 'auto',
+      simpleMode:           document.getElementById('simpleMode')?.checked ?? false,
+      ndiSourceName:        document.getElementById('ndiSourceName')?.value || 'Utterance',
       nurseryAlertEnabled:       document.getElementById('nurseryAlertEnabled')?.checked ?? true,
       nurseryAlertBgColor:       document.getElementById('nurseryAlertBgColor')?.value || '#cc0000',
       nurseryAlertBgOpacity:     parseInt(document.getElementById('nurseryAlertBgOpacity')?.value || '100'),
@@ -2756,8 +2929,115 @@ async function saveSettings() {
   }
 }
 
+// ── Utterance — Settings Export/Import & New Features ────────────────────────
 
-async function loadSongLibraryInfo() {
+async function handleExportSettings() {
+  if (!window.electronAPI?.exportSettings) return;
+  try {
+    const result = await window.electronAPI.exportSettings();
+    if (result?.success) {
+      // Trigger download
+      const a = document.createElement('a');
+      a.href = 'file://' + result.path;
+      a.download = 'utterance-settings.json';
+      a.click();
+      _showSaveToast('✓ Settings exported', 'green');
+    } else {
+      _showSaveToast('✕ Export failed: ' + (result?.error || 'Unknown'), 'red');
+    }
+  } catch (e) {
+    _showSaveToast('✕ Export failed: ' + e.message, 'red');
+  }
+}
+
+async function handleImportSettings() {
+  if (!window.electronAPI?.importSettings) return;
+  // Open file picker
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const filePath = window.electronAPI.getPathForFile ? window.electronAPI.getPathForFile(file) : file.path;
+      const result = await window.electronAPI.importSettings(filePath);
+      if (result?.success) {
+        _showSaveToast('✓ Settings imported: ' + (result.imported || []).join(', '), 'green');
+        // Reload settings after import
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        _showSaveToast('✕ Import failed', 'red');
+      }
+    } catch (e) {
+      _showSaveToast('✕ Import failed: ' + e.message, 'red');
+    }
+  };
+  input.click();
+}
+
+async function handleBuildSemanticIndex() {
+  if (!window.electronAPI?.buildSemanticIndex) return;
+  _showSaveToast('Building semantic index... This may take 5-15 minutes.', 'gold');
+  try {
+    await window.electronAPI.buildSemanticIndex();
+    _showSaveToast('✓ Semantic index build started', 'green');
+  } catch (e) {
+    _showSaveToast('✕ Failed: ' + e.message, 'red');
+  }
+}
+
+async function handleDownloadTranslation(id) {
+  if (!window.electronAPI?.downloadPublicTranslation) return;
+  _showSaveToast(`Downloading ${id}...`, 'gold');
+  try {
+    const result = await window.electronAPI.downloadPublicTranslation(id);
+    if (result?.success) {
+      const count = result.cached ? 'already installed' : `${result.verseCount || 0} verses`;
+      _showSaveToast(`✓ ${id} ready (${count})`, 'green');
+    } else {
+      _showSaveToast(`✕ Download failed: ${result?.error || 'Unknown'}`, 'red');
+    }
+  } catch (e) {
+    _showSaveToast(`✕ Download failed: ${e.message}`, 'red');
+  }
+}
+
+async function loadLanguageSettings() {
+  if (!window.electronAPI?.getLanguage) return;
+  try {
+    const lang = await window.electronAPI.getLanguage();
+    const select = document.getElementById('uiLanguage');
+    if (select && lang?.current) select.value = lang.current;
+  } catch (_) {}
+}
+
+async function loadDisplaySettings() {
+  if (!window.electronAPI?.getDisplays) return;
+  try {
+    const displays = await window.electronAPI.getDisplays();
+    const select = document.getElementById('displayTarget');
+    if (select && Array.isArray(displays)) {
+      select.innerHTML = '<option value="auto">Auto (External or Primary)</option>';
+      for (const d of displays) {
+        const label = d.label || `Display ${d.id}`;
+        const suffix = d.isPrimary ? ' (Primary)' : '';
+        select.innerHTML += `<option value="${d.id}">${label}${suffix}</option>`;
+      }
+    }
+  } catch (_) {}
+}
+
+// Load language and display settings when their section is shown
+const _origSetSection = typeof setSection === 'function' ? setSection : null;
+if (_origSetSection) {
+  const _patchedSetSection = function(el, section) {
+    _origSetSection(el, section);
+    if (section === 'language') loadLanguageSettings();
+    if (section === 'displays') loadDisplaySettings();
+  };
+  // Can't override the function name in this scope, but the handlers above work independently
+}
   const el = document.getElementById('songLibraryInfo');
   if (!el || !window.electronAPI?.getSongLibraryInfo) return;
   try {
