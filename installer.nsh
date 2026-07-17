@@ -44,14 +44,14 @@
       GetTempFileName $R0
       DetailPrint "Bundled vc_redist not found — downloading from Microsoft..."
       FileOpen $1 "$R0" w
-      FileWrite $1 '$vcDest = [System.IO.Path]::GetTempFileName() + ".exe"$\n'
-      FileWrite $1 'Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $vcDest -UseBasicParsing$\n'
+      FileWrite $1 '$$vcDest = [System.IO.Path]::GetTempFileName() + ".exe"$\n'
+      FileWrite $1 'Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $$vcDest -UseBasicParsing$\n'
       ; [NSH-2] Verify SHA256 hash before executing downloaded binary
-      FileWrite $1 '$expected = "9B9DD72C27AB1DB081DE56BB7B73B07B0001E7CDCB5BE2B060FC21B3E3B9CF50"$\n'
-      FileWrite $1 '$actual = (Get-FileHash -Path $vcDest -Algorithm SHA256).Hash$\n'
-      FileWrite $1 'if ($actual -ne $expected) { Remove-Item $vcDest -Force; exit 2 }$\n'
-      FileWrite $1 'Start-Process -FilePath $vcDest -ArgumentList "/install","/quiet","/norestart" -Wait$\n'
-      FileWrite $1 'Remove-Item $vcDest -Force$\n'
+      FileWrite $1 '$$expected = "9B9DD72C27AB1DB081DE56BB7B73B07B0001E7CDCB5BE2B060FC21B3E3B9CF50"$\n'
+      FileWrite $1 '$$actual = (Get-FileHash -Path $$vcDest -Algorithm SHA256).Hash$\n'
+      FileWrite $1 'if ($$actual -ne $$expected) { Remove-Item $$vcDest -Force; exit 2 }$\n'
+      FileWrite $1 'Start-Process -FilePath $$vcDest -ArgumentList "/install","/quiet","/norestart" -Wait$\n'
+      FileWrite $1 'Remove-Item $$vcDest -Force$\n'
       FileClose $1
       ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$R0"' $0
       Delete "$R0"
