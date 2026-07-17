@@ -5,7 +5,11 @@
   "files": ["src/**/*", "data/**/*", "assets/**/*", "ndi-addon/**/*", "whisper_server.py", "server.js", "package.json"],
   "extraResources": [
     { "from": "data/kjv.json", "to": "data/kjv.json" },
-    { "from": "data/crossrefs.json", "to": "data/crossrefs.json" }
+    { "from": "data/crossrefs.json", "to": "data/crossrefs.json" },
+    { "from": "models", "to": "models" },
+    { "from": "python", "to": "python" },
+    { "from": "vc_redist.x64.exe", "to": "vc_redist.x64.exe" },
+    { "from": "setup_whisper.bat", "to": "setup_whisper.bat" }
   ],
   "win": {
     "target": [{ "target": "nsis", "arch": ["x64"] }],
